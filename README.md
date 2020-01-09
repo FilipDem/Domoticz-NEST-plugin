@@ -25,3 +25,8 @@ You copy the credentials (issue_token and cookie) in the variables of the main s
 * cookie = 'XXXXX'
 
 Success!
+
+# Important remark
+
+The plugin works with threading because couldn't get it working with the plugin connection system.
+Normally I check at "onStop" if the threads are not running anymore before stopping. I followed the recommendations on https://github.com/domoticz/domoticz/blob/development/plugins/examples/Mutli-Threaded.py. With the debug information, it shows that there are no threads running anymore. However, when "updating" the device in the "hardware" tab, it leads to problems with the plugin system and a REBOOT of the system is required.
