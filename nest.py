@@ -160,16 +160,16 @@ class Nest():
 
         #Thermostats
         del self.device_list[:]
-        if self.status['user'][self.nest_user_id]['structures']:
+        if 'user' in self.status and self.nest_user_id in self.status['user'] and 'structures' in self.status['user'][self.nest_user_id]:
             for structure in self.status['user'][self.nest_user_id]['structures']:
                 structure_id = structure[10:]
-                if self.status['structure'][structure_id]['devices']:
+                if 'structure' in self.status and structure_id in self.status['structure'] and 'devices' in self.status['structure'][structure_id]:
                     for device in self.status['structure'][structure_id]['devices']:
                         self.device_list.append(device[7:])
 
         #Protects
         del self.protect_list[:]
-        if self.status['topaz']:
+        if 'topaz' in self.status:
             for protect in self.status['topaz']:
                 self.protect_list.append(str(protect))
 
@@ -223,8 +223,8 @@ class Nest():
 
 if __name__ == "__main__":
 
-    issue_token = 'XXXXX'
-    cookie = 'XXXXX'
+    issue_token = 'XXXX'
+    cookie = 'XXXX'
     thermostat = Nest(issue_token, cookie)
     while True:
         thermostat.GetNestCredentials()
