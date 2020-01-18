@@ -104,15 +104,20 @@ class BasePlugin:
         Domoticz.Debug("End thread")
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
-    def NestPushUpdate(self, device=None, field=None, value=None):
+    def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
         self.nest_update_status = _NEST_UPDATE_STATUS_UPDATE_SWITCH
         Domoticz.Debug("Start thread Push")
         if field == 'Target_temperature':
-            self.myNest.SetTemperature(device, value)
+            if self.myNest.SetTemperature(device, value):
+                UpdateDeviceByName(device_name, value, value)
         elif field == 'Away':
-            self.myNest.SetAway(device, value)
+            if self.myNest.SetAway(device, value):
+                if value == True:
+                    UpdateDeviceByName(device_name, 1, 1)
+                else:
+                    UpdateDeviceByName(device_name, 0, 0)
         Domoticz.Debug("End thread Push")
-        self.nest_update_status = _NEST_UPDATE_STATUS_DONE
+        self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
     def onStart(self):
         Domoticz.Debug("onStart called")
@@ -168,21 +173,24 @@ class BasePlugin:
             if info['Where'] in Devices[Unit].Name:
                 if _NEST_HEATING_TEMP in Devices[Unit].Name:
                     if self.NestPushThread is None:
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Target_temperature', Level)).start()
+                        device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Target_temperature', Level, device_name)).start()
                 elif _NEST_AWAY in Devices[Unit].Name:
                     if Command == 'On':
                         Level = True
                     else:
                         Level = False
                     if self.NestPushThread is None:
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level)).start()
+                        device_name = info['Where'] + ' ' + _NEST_AWAY
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level, device_name)).start()
                 elif _NEST_ECO_MODE in Devices[Unit].Name:
                     if Command == 'On':
                         Level = False
                     else:
                         Level = True
                     if self.NestPushThread is None:
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level)).start()
+                        device_name = info['Where'] + ' ' + _NEST_ECO_MODE
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level, device_name)).start()
                 break
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -245,7 +253,7 @@ class BasePlugin:
                         Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=82, Subtype=5, Switchtype=0, Used=1).Create()
                     UpdateDeviceByName(device_name, info['Current_temperature'], '%.2f;%.2f;0'%(info['Current_temperature'], info['Humidity']))
 
-                    #Update NEST HEATING TEMPERATUR and create device if required
+                    #Update NEST HEATING TEMPERATURE and create device if required
                     device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
                     if not fnmatch.filter([Devices[x].Name for x in Devices], '*'+device_name):
                         Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=242, Subtype=1, Switchtype=0, TypeName=info['Temperature_scale'], Used=1).Create()
