@@ -206,6 +206,10 @@ class Nest():
                     'Content-type': 'text/json'
                   }
         result = requests.post(url, data=json.dumps(data), headers=headers)
+        if result.status_code == 200:
+            return True
+        else:
+            return False
 
     def SetAway(self, device, is_away):
         url = self.transport_url + '/v2/put/structure.' + self.status['link'][device]['structure'][10:]
@@ -219,7 +223,10 @@ class Nest():
                     'Content-type': 'text/json'
                   }
         result = requests.post(url, data=json.dumps(data), headers=headers)
-
+        if result.status_code == 200:
+            return True
+        else:
+            return False
 
 if __name__ == "__main__":
 
@@ -230,7 +237,8 @@ if __name__ == "__main__":
         thermostat.GetNestCredentials()
         thermostat.GetDevicesAndStatus()
         for device in thermostat.device_list:
-            print(thermostat.GetDeviceInformation(device))
+            info = thermostat.GetDeviceInformation(device)
+            print(info)
+            thermostat.SetTemperature(device, float(info['Target_temperature']))
         for device in thermostat.protect_list:
             print(thermostat.GetProtectInformation(device))
-
