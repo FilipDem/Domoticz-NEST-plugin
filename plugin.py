@@ -91,17 +91,23 @@ class BasePlugin:
         self.NestPushThread = None
         self.device_to_update = None
         self.device_to_update_level = None
+        self.access_error_generated = 0
         self.runAgain = 1
         return
 
     def NestUpdate(self):
         self.nest_update_status = _NEST_UPDATE_STATUS_BUSY
         Domoticz.Debug("Start thread")
-        self.myNest.GetNestCredentials()
-        Domoticz.Debug("Thread: GetNestCredentials done")
-        self.myNest.GetDevicesAndStatus()
-        Domoticz.Debug("Thread: GetDevicesAndStatus done")
-        Domoticz.Debug("End thread")
+        if self.myNest.GetNestCredentials():
+            Domoticz.Debug("Thread: GetNestCredentials done")
+            self.myNest.GetDevicesAndStatus()
+            self.access_error_generated = 0
+            Domoticz.Debug("Thread: GetDevicesAndStatus done")
+            Domoticz.Debug("End thread")
+        else:
+            if self.access_error_generated <= 0:
+                Domoticz.Error(self.myNest.nest_access_error)
+                self.access_error_generated = 43200 #12h*60min*60s
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
     def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
@@ -209,6 +215,10 @@ class BasePlugin:
 
             # Run again following the period in the settings
             self.runAgain = _MINUTE*int(Parameters["Mode5"])
+
+            # Generate en error every x time
+            if self.access_error_generated > 0:
+                self.access_error_generated -= _MINUTE*int(Parameters["Mode5"])
 
         else:
             Domoticz.Debug("onHeartbeat called, run again in "+str(self.runAgain)+" heartbeats.")
