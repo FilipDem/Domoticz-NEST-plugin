@@ -22,6 +22,8 @@ import time
 import os.path
 import sys
 import datetime
+import pytz
+import tzlocal
 
 where_map = { '00000000-0000-0000-0000-000100000000': 'Entryway',
               '00000000-0000-0000-0000-000100000001': 'Basement',
@@ -47,6 +49,7 @@ class Nest():
     def __init__(self, issue_token, cookie):
         self.issue_token = issue_token
         self.cookie = cookie
+        self.nest_access_error = None
         self.nest_user_id = None
         self.nest_access_token = None
         self.access_token = None
@@ -89,6 +92,7 @@ class Nest():
             pass
 
     def _GetBearerTokenUsingGoogleCookiesIssue_token(self):
+        self.nest_access_error = None
         url = self.issue_token
         headers = { 'Sec-Fetch-Mode': 'cors',
                     'User-Agent': 'Mozilla\/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/75.0.3770.100 Safari\/537.36',
@@ -98,9 +102,12 @@ class Nest():
                   }
         result = requests.get(url, headers=headers)
         result = json.loads(result.text)
-        self.access_token = result['access_token']
-        self.access_token_type = result['token_type']
-        self.id_token = result['id_token']
+        if 'error' in result:
+            self.nest_access_error = '%s (%s)' % (result['error'], result['detail'])
+        elif 'access_token' in result and 'token_type' in result and 'id_token' in result:
+            self.access_token = result['access_token']
+            self.access_token_type = result['token_type']
+            self.id_token = result['id_token']
  
     def _UseBearerTokenToGeAccessTokenAndUserId(self):
         url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
@@ -142,12 +149,18 @@ class Nest():
 
     def GetNestCredentials(self):
         #self._ReadCache()
-        if  (self.cache_expiration is None) or (self.cache_expiration < datetime.datetime.utcnow()):
+        current_time = datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone())
+        if  (self.cache_expiration is None) or (self.cache_expiration < current_time):
             self._GetBearerTokenUsingGoogleCookiesIssue_token()
-            self._UseBearerTokenToGeAccessTokenAndUserId()
-            self._GetUser()
-            self.cache_expiration = datetime.datetime.strptime(self.cache_expiration_text, '%Y-%m-%dT%H:%M:%S.%fZ')
-            #self._WriteCache()
+            if not self.nest_access_error:
+                self._UseBearerTokenToGeAccessTokenAndUserId()
+                self._GetUser()
+                self.cache_expiration = datetime.datetime.strptime(self.cache_expiration_text + current_time.strftime("%z"), '%Y-%m-%dT%H:%M:%S.%fZ%z')
+                #self._WriteCache()
+                return True
+            else:
+                #print(self.nest_access_error)
+                return False
 
     def GetDevicesAndStatus(self):
         url = self.transport_url + '/v3/mobile/' + self.user
@@ -214,7 +227,7 @@ class Nest():
     def SetAway(self, device, is_away):
         url = self.transport_url + '/v2/put/structure.' + self.status['link'][device]['structure'][10:]
         data = { 'away': is_away,
-                 'away_timestamp': round(datetime.datetime.now().timestamp()),
+                 'away_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
                  'away_setter': 0
                }
         headers = { 'X-nl-protocol-version': '1',
@@ -234,11 +247,12 @@ if __name__ == "__main__":
     cookie = 'XXXX'
     thermostat = Nest(issue_token, cookie)
     while True:
-        thermostat.GetNestCredentials()
-        thermostat.GetDevicesAndStatus()
-        for device in thermostat.device_list:
-            info = thermostat.GetDeviceInformation(device)
-            print(info)
-            thermostat.SetTemperature(device, float(info['Target_temperature']))
-        for device in thermostat.protect_list:
-            print(thermostat.GetProtectInformation(device))
+        if thermostat.GetNestCredentials():
+            thermostat.GetDevicesAndStatus()
+            for device in thermostat.device_list:
+                info = thermostat.GetDeviceInformation(device)
+                print(info)
+                #thermostat.SetTemperature(device, float(info['Target_temperature']))
+            for device in thermostat.protect_list:
+                print(thermostat.GetProtectInformation(device))
+        time.sleep(10)
