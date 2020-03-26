@@ -196,40 +196,60 @@ class Nest():
                  'Humidity': self.status['device'][device]['current_humidity'],
                  'Eco': self.status['device'][device]['eco']['mode'] != 'schedule', #if not 'schedule' --> in eco-mode
                  'Heating': self.status['shared'][device]['hvac_heater_state'],
+                 'Target_mode': self.status['shared'][device]['target_temperature_type'],
+                 'Target_temperature_low': self.status['shared'][device]['target_temperature_low'],
+                 'Target_temperature_high': self.status['shared'][device]['target_temperature_high'],
                  'Where': where_map[self.status['device'][device]['where_id']]
                }
         return info
 
     def GetProtectInformation(self, device):
+        #print(self.status['topaz'][device])
         info = { 'Smoke_status': self.status['topaz'][device]['smoke_status'],
                  'Serial_number': str(self.status['topaz'][device]['serial_number']),
                  'Co_previous_peak': str(self.status['topaz'][device]['co_previous_peak']),
-                 'Where': where_map[self.status['topaz'][device]['spoken_where_id']]
+                 'Where': where_map[self.status['topaz'][device]['spoken_where_id']],
+                 'Battery_low': str(self.status['topaz'][device]['battery_health_state'])
                }
         return info
+
+    def SetThermostat(self, device, mode): #False = set thermostat off
+        url = self.transport_url + '/v2/put/shared.' + device
+        data = { 'target_change_pending': True,
+                 'target_temperature_type': mode
+               }
+        return self.PostMessage(url, data)
 
     def SetTemperature(self, device, target_temperature):
         url = self.transport_url + '/v2/put/shared.' + device
         data = { 'target_change_pending': True,
                  'target_temperature': target_temperature
                }
-        headers = { 'X-nl-protocol-version': '1',
-                    'X-nl-user-id': self.nest_user_id,
-                    'Authorization': 'Basic ' + self.nest_access_token,
-                    'Content-type': 'text/json'
-                  }
-        result = requests.post(url, data=json.dumps(data), headers=headers)
-        if result.status_code == 200:
-            return True
-        else:
-            return False
+        return self.PostMessage(url, data)
 
-    def SetAway(self, device, is_away):
+    def SetAway(self, device, is_away, eco_when_away=True):
         url = self.transport_url + '/v2/put/structure.' + self.status['link'][device]['structure'][10:]
         data = { 'away': is_away,
                  'away_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
                  'away_setter': 0
                }
+        if self.PostMessage(url, data):
+            if is_away and eco_when_away:
+                self.SetEco(device, 'manual-eco')
+            return True
+        else:
+            return False
+
+    def SetEco(self, device, mode): # mode equals 'manual-eco' or 'schedule'
+        url = self.transport_url + '/v2/put/device.' + device
+        data = {}
+        data['eco'] = { 'mode': mode,
+                        'mode_update_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
+                        'touched_by': 4
+                      }
+        return self.PostMessage(url, data)
+
+    def PostMessage(self, url, data):
         headers = { 'X-nl-protocol-version': '1',
                     'X-nl-user-id': self.nest_user_id,
                     'Authorization': 'Basic ' + self.nest_access_token,
@@ -252,7 +272,10 @@ if __name__ == "__main__":
             for device in thermostat.device_list:
                 info = thermostat.GetDeviceInformation(device)
                 print(info)
-                #thermostat.SetTemperature(device, float(info['Target_temperature']))
+                print(thermostat.SetTemperature(device, float(info['Target_temperature'])))
+                print(thermostat.SetAway(device, info['Away']))
+                print(thermostat.SetEco(device, 'manual-eco'))
+                print(thermostat.SetThermostat(device, 'off'))
             for device in thermostat.protect_list:
                 print(thermostat.GetProtectInformation(device))
         time.sleep(10)
