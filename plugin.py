@@ -113,12 +113,24 @@ class BasePlugin:
     def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
         self.nest_update_status = _NEST_UPDATE_STATUS_UPDATE_SWITCH
         Domoticz.Debug("Start thread Push")
-        if field == 'Target_temperature':
+        if field == _NEST_HEATING_TEMP:
             if self.myNest.SetTemperature(device, value):
                 UpdateDeviceByName(device_name, value, value)
-        elif field == 'Away':
+        elif field == _NEST_AWAY:
             if self.myNest.SetAway(device, value):
                 if value == True:
+                    UpdateDeviceByName(device_name, 1, 1)
+                else:
+                    UpdateDeviceByName(device_name, 0, 0)
+        elif field == _NEST_ECO_MODE:
+            if self.myNest.SetEco(device, value):
+                if value == 'manual-eco':
+                    UpdateDeviceByName(device_name, 1, 1)
+                else:
+                    UpdateDeviceByName(device_name, 0, 0)
+        elif field == _NEST_HEATING:
+            if self.myNest.SetThermostat(device, value):
+                if value == 'heat':
                     UpdateDeviceByName(device_name, 1, 1)
                 else:
                     UpdateDeviceByName(device_name, 0, 0)
@@ -180,7 +192,7 @@ class BasePlugin:
                 if _NEST_HEATING_TEMP in Devices[Unit].Name:
                     if self.NestPushThread is None:
                         device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Target_temperature', Level, device_name)).start()
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING_TEMP, Level, device_name)).start()
                 elif _NEST_AWAY in Devices[Unit].Name:
                     if Command == 'On':
                         Level = True
@@ -188,15 +200,23 @@ class BasePlugin:
                         Level = False
                     if self.NestPushThread is None:
                         device_name = info['Where'] + ' ' + _NEST_AWAY
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level, device_name)).start()
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_AWAY, Level, device_name)).start()
                 elif _NEST_ECO_MODE in Devices[Unit].Name:
                     if Command == 'On':
-                        Level = False
+                        Level = 'manual-eco'
                     else:
-                        Level = True
+                        Level = 'schedule'
                     if self.NestPushThread is None:
                         device_name = info['Where'] + ' ' + _NEST_ECO_MODE
-                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, 'Away', Level, device_name)).start()
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_ECO_MODE, Level, device_name)).start()
+                elif _NEST_HEATING in Devices[Unit].Name:
+                    if Command == 'On':
+                        Level = 'heat'
+                    else:
+                        Level = 'off'
+                    if self.NestPushThread is None:
+                        device_name = info['Where'] + ' ' + _NEST_HEATING
+                        self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING, Level, device_name)).start()
                 break
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
