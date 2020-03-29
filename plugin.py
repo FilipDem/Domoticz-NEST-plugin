@@ -51,7 +51,9 @@ _UNIT_DIMMER = 1
 #DEFAULT IMAGE
 _NO_IMAGE_UPDATE = -1
 _IMAGE_NEST_HEATING = "GoogleNest Nest Heating"
+_IMAGE_NEST_HEATING_OFF = "GoogleNest Nest Heating Off"
 _IMAGE_NEST_AWAY = "GoogleNest Nest Away"
+_IMAGE_NEST_ECO = "GoogleNest Nest Eco"
 _IMAGE_NEST_PROTECT = "GoogleNest Nest Protect"
 
 #THE HAERTBEAT IS EVERY 10s
@@ -130,10 +132,11 @@ class BasePlugin:
                     UpdateDeviceByName(device_name, 0, 0)
         elif field == _NEST_HEATING:
             if self.myNest.SetThermostat(device, value):
+                image = Images[_IMAGE_NEST_HEATING_OFF].ID
                 if value == 'heat':
-                    UpdateDeviceByName(device_name, 1, 1)
+                    UpdateDeviceByName(device_name, 1, 1, image)
                 else:
-                    UpdateDeviceByName(device_name, 0, 0)
+                    UpdateDeviceByName(device_name, 0, 0, image)
         Domoticz.Debug("End thread Push")
         self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
@@ -150,8 +153,12 @@ class BasePlugin:
         # Check if images are in database
         if _IMAGE_NEST_AWAY not in Images:
             Domoticz.Image("Nest Away.zip").Create()
+        if _IMAGE_NEST_ECO not in Images:
+            Domoticz.Image("Nest Eco.zip").Create()
         if _IMAGE_NEST_HEATING not in Images:
             Domoticz.Image("Nest Heating.zip").Create()
+        if _IMAGE_NEST_HEATING_OFF not in Images:
+            Domoticz.Image("Nest Heating Off.zip").Create()
         if _IMAGE_NEST_PROTECT not in Images:
             Domoticz.Image("Nest Protect.zip").Create()
         Domoticz.Debug("Images created.")
@@ -190,32 +197,38 @@ class BasePlugin:
             Domoticz.Debug(info['Where'] + ' - ' + Devices[Unit].Name)
             if info['Where'] in Devices[Unit].Name:
                 if _NEST_HEATING_TEMP in Devices[Unit].Name:
+                    device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
                     if self.NestPushThread is None:
-                        device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
                         self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING_TEMP, Level, device_name)).start()
                 elif _NEST_AWAY in Devices[Unit].Name:
+                    device_name = info['Where'] + ' ' + _NEST_AWAY
                     if Command == 'On':
                         Level = True
+                        UpdateDeviceByName(device_name, 1, 1)
                     else:
                         Level = False
+                        UpdateDeviceByName(device_name, 0, 0)
                     if self.NestPushThread is None:
-                        device_name = info['Where'] + ' ' + _NEST_AWAY
                         self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_AWAY, Level, device_name)).start()
                 elif _NEST_ECO_MODE in Devices[Unit].Name:
+                    device_name = info['Where'] + ' ' + _NEST_ECO_MODE
                     if Command == 'On':
                         Level = 'manual-eco'
+                        UpdateDeviceByName(device_name, 1, 1)
                     else:
                         Level = 'schedule'
+                        UpdateDeviceByName(device_name, 0, 0)
                     if self.NestPushThread is None:
-                        device_name = info['Where'] + ' ' + _NEST_ECO_MODE
                         self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_ECO_MODE, Level, device_name)).start()
                 elif _NEST_HEATING in Devices[Unit].Name:
+                    device_name = info['Where'] + ' ' + _NEST_HEATING
                     if Command == 'On':
                         Level = 'heat'
+                        UpdateDeviceByName(device_name, 1, 1)
                     else:
                         Level = 'off'
+                        UpdateDeviceByName(device_name, 0, 0)
                     if self.NestPushThread is None:
-                        device_name = info['Where'] + ' ' + _NEST_HEATING
                         self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING, Level, device_name)).start()
                 break
 
@@ -255,9 +268,16 @@ class BasePlugin:
                     if not fnmatch.filter([Devices[x].Name for x in Devices], '*'+device_name):
                         Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_HEATING].ID, Used=1).Create()
                     if info['Heating']:
-                        UpdateDeviceByName(device_name, 1, 1)
+                        image = Images[_IMAGE_NEST_HEATING].ID
+                        UpdateDeviceByName(device_name, 1, 1, image)
                     else:
-                        UpdateDeviceByName(device_name, 0, 0)
+                        #Update NEST HEATING icon off or on
+                        if info['Target_mode'] == 'off':
+                            image = Images[_IMAGE_NEST_HEATING_OFF].ID
+                            UpdateDeviceByName(device_name, 0, 0, image)
+                        else:
+                            image = Images[_IMAGE_NEST_HEATING].ID
+                            UpdateDeviceByName(device_name, 0, 0, image)
 
                     #Update NEST AWAY and create device if required
                     device_name = info['Where'] + ' ' + _NEST_AWAY
@@ -271,7 +291,7 @@ class BasePlugin:
                     #Update NEST ECO MODE and create device if required
                     device_name = info['Where'] + ' ' + _NEST_ECO_MODE
                     if not fnmatch.filter([Devices[x].Name for x in Devices], '*'+device_name):
-                        Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_AWAY].ID, Used=1).Create()
+                        Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_ECO].ID, Used=1).Create()
                     if info['Eco']:
                         UpdateDeviceByName(device_name, 1, 1)
                     else:
@@ -356,10 +376,10 @@ def DumpConfigToLog():
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
 
-def UpdateDeviceByName(name, nValue, sValue):
+def UpdateDeviceByName(name, nValue, sValue, Image=_NO_IMAGE_UPDATE):
     for Unit in Devices:
         if name in Devices[Unit].Name:
-            UpdateDevice(Devices[Unit].Unit, nValue, sValue)
+            UpdateDevice(Devices[Unit].Unit, nValue, sValue, Image)
             break
 
 def UpdateDevice(Unit, nValue, sValue, Image=_NO_IMAGE_UPDATE, TimedOut=0, AlwaysUpdate=False):
