@@ -107,21 +107,24 @@ class Nest():
             try:
                 result = requests.get(url, headers=headers)
             except:
-                self._nest_access_error = 'Invalid IssueToken.'
+                self._nest_access_error = 'Invalid IssueToken/Cookie.'
                 return False
-                
+               
             if result.status_code == 200:
                 result = json.loads(result.text)
                 if 'error' in result:
-                    self._nest_access_error = '%s (%s)' % (result['error'], result['detail'])
+                    self._nest_access_error = 'Invalid IssueToken/Cookie: %s (%s)' % (result['error'], result['detail'])
                 elif 'access_token' in result and 'token_type' in result and 'id_token' in result:
                     self._access_token = result['access_token']
                     self._access_token_type = result['token_type']
                     self._id_token = result['id_token']
                     return True
-        return False
+            else:
+                result = json.loads(result.text)
+                self._nest_access_error = 'Invalid IssueToken/Cookie: %s (%s)' % (result['error'], result['error_description'])
+            return False
  
-    def _UseBearerTokenToGeAccessTokenAndUserId(self):
+    def _UseBearerTokenToGetAccessTokenAndUserId(self):
         if self._running:
             url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
             data = { 'embed_google_oauth_access_token': True,
@@ -141,7 +144,9 @@ class Nest():
                 self._nest_access_token = result['jwt']
                 self._cache_expiration_text = result['claims']['expirationTime']
                 return True
-        return False
+
+            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get AccessToken and UserId.'
+            return False
 
     def _GetUser(self):
         if self._running:
@@ -165,7 +170,9 @@ class Nest():
                 if not self._user:
                     self._user = 'user.'+self._nest_user_id
                 return True
-        return False
+
+            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get User.'
+            return False
 
     def UpdateDevices(self):
         if not self._nest_access_error:
@@ -174,6 +181,8 @@ class Nest():
         return False
 
     def GetAccessError(self):
+        if not self._nest_access_error:
+            return 'No error identified.'
         return self._nest_access_error
 
     def GetNestCredentials(self):
@@ -181,7 +190,7 @@ class Nest():
         current_time = datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone())
         if  (self._cache_expiration is None) or (self._cache_expiration < current_time):
             if self._GetBearerTokenUsingGoogleCookiesIssue_token():
-                if self._UseBearerTokenToGeAccessTokenAndUserId():
+                if self._UseBearerTokenToGetAccessTokenAndUserId():
                     if self._GetUser():
                         self._cache_expiration = datetime.datetime.strptime(self._cache_expiration_text + current_time.strftime("%z"), '%Y-%m-%dT%H:%M:%S.%fZ%z')
                         #self._WriteCache()
@@ -219,8 +228,9 @@ class Nest():
                 
                 #All OK
                 return True
-
-        return False 
+                
+            self._nest_access_error = 'Error getting device information.'
+            return False 
 
     def GetDeviceInformation(self, device):
         structure = self._status['link'][device]['structure'][10:]
@@ -301,9 +311,10 @@ class Nest():
 if __name__ == "__main__":
 
     issue_token = 'xxxx'
-    cookie = 'xxxx'
+    cookie = 'yyyy'
     thermostat = Nest(issue_token, cookie)
     while True:
+        print(thermostat.GetAccessError())
         if thermostat.UpdateDevices():
             for device in thermostat.device_list:
                 info = thermostat.GetDeviceInformation(device)
@@ -317,4 +328,3 @@ if __name__ == "__main__":
         else:
             print(thermostat.GetAccessError())
         time.sleep(10)
-
