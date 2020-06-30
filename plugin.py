@@ -124,7 +124,7 @@ class BasePlugin:
             TimeoutDevice(All=True)
             if self.access_error_generated <= 0:
                 Domoticz.Error(self.myNest.GetAccessError())
-                self.access_error_generated = 43200 #12h*60min*60s
+                self.access_error_generated = 43201 #12h*60min*60s
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
     def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
@@ -406,8 +406,9 @@ def UpdateDeviceByName(name, nValue, sValue, Image=-1, BatteryLevel=255):
 def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
     if Unit in Devices:
         if Devices[Unit].nValue != int(nValue) or Devices[Unit].sValue != str(sValue) or Devices[Unit].TimedOut != TimedOut or Devices[Unit].Image != Image or AlwaysUpdate:
+            Domoticz.Debug("Going to Update " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
             Devices[Unit].Update(nValue=int(nValue), sValue=str(sValue), Image=Image, TimedOut=TimedOut)
-            Domoticz.Debug("Update " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
+            Domoticz.Debug("Updated " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
         else:
             Devices[Unit].Touch()
 
@@ -415,8 +416,9 @@ def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
 def UpdateDeviceBatSig(Unit, BatteryLevel=255, SignalLevel=12):
     if Unit in Devices:
         if Devices[Unit].BatteryLevel != int(BatteryLevel) or Devices[Unit].SignalLevel != int(SignalLevel):
+            Domoticz.Debug("Going to Update " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
             Devices[Unit].Update(nValue=Devices[Unit].nValue, sValue=Devices[Unit].sValue, BatteryLevel=int(BatteryLevel), SignalLevel=int(SignalLevel))
-        Domoticz.Debug("Update " + Devices[Unit].Name + ": " + str(int(BatteryLevel)) + " - " + str(int(SignalLevel)))
+            Domoticz.Debug("Updated " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
 
 #SET DEVICE ON TIMED-OUT (OR ALL DEVICES)
 def TimeoutDevice(All, Unit=0):
