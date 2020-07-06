@@ -145,7 +145,7 @@ class Nest():
                 self._cache_expiration_text = result['claims']['expirationTime']
                 return True
 
-            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get AccessToken and UserId.'
+            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get AccessToken and UserId (http_status_code=%d).' % result.status_code
             return False
 
     def _GetUser(self):
@@ -171,13 +171,13 @@ class Nest():
                     self._user = 'user.'+self._nest_user_id
                 return True
 
-            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get User.'
+            self._nest_access_error = 'Invalid IssueToken/Cookie: Problem to get User (http_status_code=%d).' % result.status_code
             return False
 
     def UpdateDevices(self):
-        if not self._nest_access_error:
-            if self.GetNestCredentials():
-                return self.GetDevicesAndStatus()
+        self._nest_access_error = None
+        if self.GetNestCredentials():
+            return self.GetDevicesAndStatus()
         return False
 
     def GetAccessError(self):
@@ -229,7 +229,7 @@ class Nest():
                 #All OK
                 return True
                 
-            self._nest_access_error = 'Error getting device information.'
+            self._nest_access_error = 'Error getting device information (http_status_code=%d).' % result.status_code
             return False 
 
     def GetDeviceInformation(self, device):
@@ -307,7 +307,7 @@ class Nest():
             return True
         else:
             return False
-
+          
 if __name__ == "__main__":
 
     issue_token = 'xxxx'
