@@ -137,7 +137,7 @@ class Nest():
                         'X-Goog-API-Key': 'AIzaSyAdkSIMNc51XGNEAYWasX9UOWkS5P6sZE4', #Nest website's (public) API key
                         'Referer': 'https://home.nest.com'
                       }
-            result = requests.post(url, data=json.dumps(data), headers=headers)
+            result = self.SendMessageWithRetries(url, data, headers=headers, retries=2)
             if result.status_code == 200:
                 result = json.loads(result.text)
                 self._nest_user_id = result['claims']['subject']['nestId']['id']
@@ -154,12 +154,7 @@ class Nest():
             data = { 'known_bucket_types': ['user'],
                      'known_bucket_versions': []
                    }
-            headers = { 'X-nl-protocol-version': '1',
-                        'X-nl-user-id': self._nest_user_id,
-                        'Authorization': 'Basic ' + self._nest_access_token,
-                        'Content-type': 'text/json'
-                      }
-            result = requests.post(url, data=json.dumps(data), headers=headers)
+            result = self.SendMessageWithRetries(url, data, retries=2)
             if result.status_code == 200:
                 result = json.loads(result.text)
                 self._transport_url = result['service_urls']['urls']['transport_url']
@@ -265,14 +260,14 @@ class Nest():
         data = { 'target_change_pending': True,
                  'target_temperature_type': mode
                }
-        return self.PostMessage(url, data)
+        return self.UpdateNest(url, data)
 
     def SetTemperature(self, device, target_temperature):
         url = self._transport_url + '/v2/put/shared.' + device
         data = { 'target_change_pending': True,
                  'target_temperature': target_temperature
                }
-        return self.PostMessage(url, data)
+        return self.UpdateNest(url, data)
 
     def SetAway(self, device, is_away, eco_when_away=True):
         url = self._transport_url + '/v2/put/structure.' + self._status['link'][device]['structure'][10:]
@@ -280,7 +275,7 @@ class Nest():
                  'away_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
                  'away_setter': 0
                }
-        if self.PostMessage(url, data):
+        if self.UpdateNest(url, data):
             if is_away and eco_when_away:
                 self.SetEco(device, 'manual-eco')
             return True
@@ -294,24 +289,36 @@ class Nest():
                         'mode_update_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
                         'touched_by': 4
                       }
-        return self.PostMessage(url, data)
+        return self.UpdateNest(url, data)
 
-    def PostMessage(self, url, data):
-        headers = { 'X-nl-protocol-version': '1',
-                    'X-nl-user-id': self._nest_user_id,
-                    'Authorization': 'Basic ' + self._nest_access_token,
-                    'Content-type': 'text/json'
-                  }
-        result = requests.post(url, data=json.dumps(data), headers=headers)
+    def UpdateNest(self, url, data, retries=2):
+        result = self.SendMessageWithRetries(url=url, data=data)
         if result.status_code == 200:
             return True
         else:
             return False
-          
+
+    def SendMessageWithRetries(self, url, data, headers=None, retries=1):
+        retry_errors = [500, 502, 503, 504]
+        if headers == None:
+            headers = { 'X-nl-protocol-version': '1',
+                        'X-nl-user-id': self._nest_user_id,
+                        'Authorization': 'Basic ' + self._nest_access_token,
+                        'Content-type': 'text/json'
+                      }
+        retry = 1
+        while True:
+            result = requests.post(url=url, data=json.dumps(data), headers=headers)
+            if retry >= retries or not result.status_code in retry_errors:
+                break
+            retry += 1
+            time.sleep(0.5)
+        return result
+
 if __name__ == "__main__":
 
-    issue_token = 'xxxx'
-    cookie = 'yyyy'
+    issue_token = 'xxx'
+    cookie = 'xxx'
     thermostat = Nest(issue_token, cookie)
     while True:
         print(thermostat.GetAccessError())
@@ -328,3 +335,4 @@ if __name__ == "__main__":
         else:
             print(thermostat.GetAccessError())
         time.sleep(10)
+
