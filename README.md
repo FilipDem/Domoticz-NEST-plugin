@@ -1,3 +1,8 @@
+# Donation
+It took me quite some effort to get the plugin available. Small contributions are welcome...
+
+[![](https://www.paypalobjects.com/en_US/BE/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=AT4L7ST55JR4A)
+
 # Domoticz-NEST-plugin
 NEST Plugin for Domoticz using the Google account credentials.
 
