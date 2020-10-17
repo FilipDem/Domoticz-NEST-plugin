@@ -9,6 +9,8 @@ NEST Plugin for Domoticz using the Google account credentials.
 This is a workaround solution for NEST Thermostats and NEST Protect devices in Domoticz.
 It does not use any official API because of non-existance. NEST/Google announced them only to be available by end of 2020.
 
+The plugin creates the following devices: Away, Eco-mode, Heating, Temperature/Humidity, Heating temperature, Nest Protect.
+
 ## Installation (linux)
 Follow this procedure to install the plugin.
 * Go to "~/Domoticz/plugins" with the command ```cd ~/Domoticz/plugins```
