@@ -9,6 +9,16 @@ NEST Plugin for Domoticz using the Google account credentials.
 This is a workaround solution for NEST Thermostats and NEST Protect devices in Domoticz.
 It does not use any official API because of non-existance. NEST/Google announced them only to be available by end of 2020.
 
+## Installation (linux)
+Follow this procedure to install the plugin.
+* Go to "~/Domoticz/plugins" with the command ```cd ~/Domoticz/plugins```
+* Create directory "GoogleNest" with the command ```mkdir GoogleNest```
+* Copy all the files from github in the created directory
+* Be sure the following python3 libraries are installed: requests, json, time, datetime, pytz and tzlocal
+   * use ```pip3 <library>``` to verify if the libraries are installed
+   * to install the missing libraries: ```sudo pip3 install <library>```
+
+## Configuration
 For the plugin you need to enter two values in the Domoticz hardware plugin settings: issue_token and cookies.
 The values of issue_token and cookies are specific to your Google Account. 
 To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
@@ -31,7 +41,4 @@ You copy the credentials (issue_token and cookie) in the variables of the main s
 
 Success!
 
-# Important remark
-
-The plugin works with threading because couldn't get it working with the plugin connection system.
-Normally I check at "onStop" if the threads are not running anymore before stopping. I followed the recommendations on https://github.com/domoticz/domoticz/blob/development/plugins/examples/Mutli-Threaded.py. With the debug information, it shows that there are no threads running anymore. However, when "updating" the device in the "hardware" tab, it leads to problems with the plugin system and a REBOOT of the system is required.
+**Don't forget a small gift by using the donation button...**
