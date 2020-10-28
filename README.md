@@ -19,7 +19,15 @@ Follow this procedure to install the plugin.
 * Be sure the following python3 libraries are installed: requests, pytz and tzlocal
    * use ```pip3 list``` to verify if the libraries are installed
    * to install the missing libraries: ```sudo pip3 install <library>```
+* Restart Domoticz with ```sudo systemctl restart domoticz.service```
 
+## Adding NEST to Domoticz
+In the Setup - Hardware, 
+   * add the *Type* (dropdown) **Nest Thermostat/Protect Google**
+   * give the device a *Name* (eg **Nest**)
+   * for the fields *issue_token* and *cookie*, follow the guidance in the section hereafter (Configuration)
+   * for the settings *minutes between updates*, recommendation is to avoid below 2 minutes
+   
 ## Configuration
 For the plugin you need to enter two values in the Domoticz hardware plugin settings: issue_token and cookies.
 The values of issue_token and cookies are specific to your Google Account. 
