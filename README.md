@@ -51,10 +51,11 @@ You copy the credentials (issue_token and cookie) in the variables of the main s
 
 ## Device creation
 After the start of the plugin the devices will be automatically created for: Heating (on/off), Eco mode (on/off), Away (on/off), Temp/hum (temperature and humidity), Heating Temp (thermostat temperature), Protect (on/off).
-The names of the devices are created automatically based on the location settings of your Nest with: <name of the hardware> - <location> <type of switch>
-   * <name of the hardware>: name as entered in the Setup - Hardware screen
-   * <location>: as set up in the nest account, some possible values 'Entryway', 'Kitchen', 'Living Room', ...
-   * <type of switch>: 'Heating', 'Eco mode', 'Away', 'Temp/Hum', 'Heating Temp', 'Protect'
+The names of the devices are created automatically based on the location settings of your Nest with: *name_of_the_hardware* - *location type_of_switch*
+   * name_of_the_hardware: name as entered in the Setup - Hardware screen
+   * location: as set up in the nest account, some possible values 'Entryway', 'Kitchen', 'Living Room', ...
+   * type_of_switch: 'Heating', 'Eco mode', 'Away', 'Temp/Hum', 'Heating Temp', 'Protect'
+The names cannot be changed, except the name of the hardware.
 
 Success!
 
