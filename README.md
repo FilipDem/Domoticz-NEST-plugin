@@ -16,8 +16,8 @@ Follow this procedure to install the plugin.
 * Go to "~/Domoticz/plugins" with the command ```cd ~/Domoticz/plugins```
 * Create directory "GoogleNest" with the command ```mkdir GoogleNest```
 * Copy all the files from github in the created directory
-* Be sure the following python3 libraries are installed: requests, json, time, datetime, pytz and tzlocal
-   * use ```pip3 <library>``` to verify if the libraries are installed
+* Be sure the following python3 libraries are installed: requests, datetime, pytz and tzlocal
+   * use ```pip3 list``` to verify if the libraries are installed
    * to install the missing libraries: ```sudo pip3 install <library>```
 
 ## Configuration
