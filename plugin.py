@@ -315,7 +315,7 @@ class BasePlugin:
                     device_name = info['Where'] + ' ' + _NEST_TEMP_HUM
                     if not fnmatch.filter([Devices[x].Name for x in Devices], '*'+device_name):
                         Domoticz.Device(Unit=len(Devices)+1, Name=device_name, Type=82, Subtype=5, Switchtype=0, Used=1).Create()
-                    UpdateDeviceByName(device_name, info['Current_temperature'], '%.2f;%.2f;0'%(info['Current_temperature'], info['Humidity']))
+                    UpdateDeviceByName(device_name, info['Current_temperature'], '%.1f;%.0f;0'%(info['Current_temperature'], info['Humidity']))
 
                     #Update NEST HEATING TEMPERATURE and create device if required
                     device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
