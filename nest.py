@@ -2,7 +2,7 @@
 #
 # Based on https://github.com/gboudreau/nest-api
 #
-# The values of issue_token and cookies are specific to your Google Account. 
+# The values of issue_token and cookies are specific to your Google Account.
 # To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
 #
 #     Open a Chrome browser tab in Incognito Mode (or clear your cache).
@@ -64,10 +64,11 @@ class Nest():
         #self._ReadCache()
         self.device_list = []
         self.protect_list = []
-      
-    def terminate(self): 
+        self.request_timeout = 10.0
+
+    def terminate(self):
         self._running = False
-        
+
     def _ReadCache(self):
         if os.path.exists('nest.json'):
             try:
@@ -85,10 +86,10 @@ class Nest():
     def _WriteCache(self):
         try:
             with open('nest.json', 'w') as json_file:
-                json.dump({ 'user_id': self_nest_user_id, 
-                            'access_token': self._nest_access_token, 
-                            'user': self._user, 
-                            'transport_url': self._transport_url, 
+                json.dump({ 'user_id': self_nest_user_id,
+                            'access_token': self._nest_access_token,
+                            'user': self._user,
+                            'transport_url': self._transport_url,
                             'cache_expiration': self._cache_expiration_text
                           }, json_file)
         except:
@@ -105,11 +106,14 @@ class Nest():
                         'Cookie': self._cookie
                       }
             try:
-                result = requests.get(url, headers=headers)
+                result = requests.get(url, headers=headers, timeout=self.request_timeout)
+            except requests.exceptions.Timeout as e:
+                self._nest_access_error = 'Connection timeout.'
+                return False
             except:
                 self._nest_access_error = 'Invalid IssueToken/Cookie.'
                 return False
-               
+
             if result.status_code == 200:
                 result = json.loads(result.text)
                 if 'error' in result:
@@ -123,7 +127,7 @@ class Nest():
                 result = json.loads(result.text)
                 self._nest_access_error = 'Invalid IssueToken/Cookie: %s (%s)' % (result['error'], result['error_description'])
             return False
- 
+
     def _UseBearerTokenToGetAccessTokenAndUserId(self):
         if self._running:
             url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
@@ -138,7 +142,9 @@ class Nest():
                         'Referer': 'https://home.nest.com'
                       }
             result = self.SendMessageWithRetries(url, data, headers=headers, retries=2)
-            if result.status_code == 200:
+            if result == None:
+                return False
+            if resultresult.status_code == 200:
                 result = json.loads(result.text)
                 self._nest_user_id = result['claims']['subject']['nestId']['id']
                 self._nest_access_token = result['jwt']
@@ -155,6 +161,8 @@ class Nest():
                      'known_bucket_versions': []
                    }
             result = self.SendMessageWithRetries(url, data, retries=2)
+            if result == None:
+                return False
             if result.status_code == 200:
                 result = json.loads(result.text)
                 self._transport_url = result['service_urls']['urls']['transport_url']
@@ -177,7 +185,7 @@ class Nest():
 
     def GetAccessError(self):
         if not self._nest_access_error:
-            return 'No error identified.'
+            return 'All good.'
         return self._nest_access_error
 
     def GetNestCredentials(self):
@@ -202,7 +210,12 @@ class Nest():
                         'X-nl-user-id': self._nest_user_id,
                         'Authorization': 'Basic ' + self._nest_access_token,
                       }
-            result = requests.get(url, headers=headers)
+            try:
+                result = requests.get(url, headers=headers, timeout=self.request_timeout)
+            except requests.exceptions.Timeout as e:
+                self._nest_access_error = 'Connection timeout.'
+                return False
+
             if result.status_code == 200:
                 self._status = json.loads(result.text)
 
@@ -220,12 +233,12 @@ class Nest():
                 if 'topaz' in self._status:
                     for protect in self._status['topaz']:
                         self.protect_list.append(str(protect))
-                
+
                 #All OK
                 return True
-                
+
             self._nest_access_error = 'Error getting device information (http_status_code=%d).' % result.status_code
-            return False 
+            return False
 
     def GetDeviceInformation(self, device):
         structure = self._status['link'][device]['structure'][10:]
@@ -293,6 +306,8 @@ class Nest():
 
     def UpdateNest(self, url, data, retries=2):
         result = self.SendMessageWithRetries(url=url, data=data)
+        if result == None:
+            return False
         if result.status_code == 200:
             return True
         else:
@@ -308,7 +323,12 @@ class Nest():
                       }
         retry = 1
         while True:
-            result = requests.post(url=url, data=json.dumps(data), headers=headers)
+            try:
+                result = requests.post(url=url, data=json.dumps(data), headers=headers, timeout=self.request_timeout)
+            except requests.exceptions.Timeout as e:
+                self._nest_access_error = 'Connection timeout.'
+                result = None
+
             if retry >= retries or not result.status_code in retry_errors:
                 break
             retry += 1

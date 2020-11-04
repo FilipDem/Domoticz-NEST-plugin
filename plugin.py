@@ -8,7 +8,7 @@
 # NEST Plugin that works with the Google Account.
 #
 # It is based on the PHP code from https://github.com/gboudreau/nest-api. However only the functions required are ported to the plugin.
-# A workaround is required to access the Google Account data. The values of issue_token and cookies are specific to your Google Account. 
+# A workaround is required to access the Google Account data. The values of issue_token and cookies are specific to your Google Account.
 # To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
 #     Open a Chrome browser tab in Incognito Mode (or clear your cache).
 #     Open Developer Tools (View/Developer/Developer Tools).
@@ -115,16 +115,15 @@ class BasePlugin:
 
     def NestUpdate(self):
         self.nest_update_status = _NEST_UPDATE_STATUS_BUSY
-        Domoticz.Debug("Start thread")
+        Domoticz.Debug("Enter update thread")
         if self.myNest.UpdateDevices():
             self.access_error_generated = 0
-            Domoticz.Debug("End thread (OK)")
         else:
-            Domoticz.Debug("End thread (ERROR)")
+            Domoticz.Error(self.myNest.GetAccessError())
             TimeoutDevice(All=True)
             if self.access_error_generated <= 0:
-                Domoticz.Error(self.myNest.GetAccessError())
-                self.access_error_generated = 43201 #12h*60min*60s
+                self.access_error_generated = 12 * 60 * 60 # 12 hours
+        Domoticz.Debug("Exit update thread")
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
     def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
@@ -193,7 +192,7 @@ class BasePlugin:
 
         # Wait until queue thread has exited
         Domoticz.Debug("Threads still active: " + str(threading.active_count()) + ", should be 1.")
-        Domoticz.Debug("Current thread (plugin): "+threading.current_thread().name) 
+        Domoticz.Debug("Current thread (plugin): "+threading.current_thread().name)
         while (threading.active_count() > 1):
             for thread in threading.enumerate():
                 if (thread.name != threading.current_thread().name):
