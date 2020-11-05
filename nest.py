@@ -1,6 +1,9 @@
-# NEST Class to access the NEST Thermostat and Protect through the Google Account.
+# Nest Class to access the Nest Thermostat and Protect through the Google Account.
 #
 # Based on https://github.com/gboudreau/nest-api
+#
+# Author: Filip Demaertelaere
+# Extended by: Mark Ruys
 #
 # The values of issue_token and cookies are specific to your Google Account.
 # To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
