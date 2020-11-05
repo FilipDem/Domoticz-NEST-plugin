@@ -27,7 +27,7 @@ In the Setup - Hardware,
    * give the device a *Name* (eg **Nest**)
    * for the fields *issue_token* and *cookie*, follow the guidance in the section hereafter (Configuration)
    * for the settings *minutes between updates*, recommendation is to avoid below 2 minutes
-   
+
 ## Configuration
 For the plugin you need to enter two values in the Domoticz hardware plugin settings: issue_token and cookies.
 The values of issue_token and cookies are specific to your Google Account. 
@@ -44,18 +44,24 @@ To get them, follow these steps (only needs to be done once, as long as you stay
 * Several network calls will appear in the Dev Tools window. Click on the last iframe call.
 * In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 
-If you have problems, it is recommended to test with the nest.py plugin outside Domoticz. It is developed in python3 (so use "python3 nest.py").
-You copy the credentials (issue_token and cookie) in the variables of the main section: just replace the XXXXX by the your values. 
-* issue_token = 'XXXXX'
-* cookie = 'XXXXX'
+If you have problems, it is recommended to test with the nest.py plugin outside Domoticz. It is developed in python3 (substitute the proper values for `xxx`:
+
+```shell
+export NEST_ISSUE_TOKEN='xxx'
+export NEST_COOKIE='xxx'
+python3 nest.py
+```
 
 ## Device creation
 After the start of the plugin the devices will be automatically created for: Heating (on/off), Eco mode (on/off), Away (on/off), Temp/hum (temperature and humidity), Heating Temp (thermostat temperature), Protect (on/off).
-The names of the devices are created automatically based on the location settings of your Nest with: *name_of_the_hardware* - *location type_of_switch*
+The names of the devices are created automatically based on the location settings of your Nest with: *name_of_the_hardware* - *location type_of_switch*.
+
    * name_of_the_hardware: name as entered in the Setup - Hardware screen
    * location: as set up in the nest account, some possible values 'Entryway', 'Kitchen', 'Living Room', ...
    * type_of_switch: 'Heating', 'Eco mode', 'Away', 'Temp/Hum', 'Heating Temp', 'Protect'
 The names cannot be changed, except the name of the hardware.
+
+For each created device a remark is added to the description, like 'Do not remove: [Family Room Heating]'. The part in square brackets (inclusive) is needed to make this plugin work.
 
 Success!
 
