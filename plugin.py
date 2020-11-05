@@ -119,7 +119,7 @@ class BasePlugin:
         if self.myNest.UpdateDevices():
             self.access_error_generated = 0
         else:
-            Domoticz.Error("> {}".format(self.myNest.GetAccessError()))
+            Domoticz.Error(self.myNest.GetAccessError())
             TimeoutDevice(All=True)
             if self.access_error_generated <= 0:
                 self.access_error_generated = 12 * 60 * 60 # 12 hours
@@ -157,6 +157,9 @@ class BasePlugin:
         # Debugging On/Off
         self.debug = _DEBUG_ON if Parameters["Mode6"] == "Debug" else _DEBUG_OFF
         Domoticz.Debugging(self.debug)
+
+        if self.debug == _DEBUG_ON:
+            DumpConfigToLog()
 
         # Check if images are in database
         if _IMAGE_NEST_AWAY not in Images:
@@ -376,15 +379,16 @@ def onHeartbeat():
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
-            Domoticz.Debug("> '" + x + "':'" + str(Parameters[x]) + "'")
-    Domoticz.Debug("> Device count: " + str(len(Devices)))
+            Domoticz.Debug("> Parameter {}: {}".format(x, Parameters[x]))
     for x in Devices:
-        Domoticz.Debug("> Device:           " + str(x) + " - " + str(Devices[x]))
-        Domoticz.Debug("> Device ID:       '" + str(Devices[x].ID) + "'")
-        Domoticz.Debug("> Device Name:     '" + Devices[x].Name + "'")
-        Domoticz.Debug("> Device nValue:    " + str(Devices[x].nValue))
-        Domoticz.Debug("> Device sValue:   '" + Devices[x].sValue + "'")
-        Domoticz.Debug("> Device LastLevel: " + str(Devices[x].LastLevel))
+        Domoticz.Debug("> Device {}:             {}".format(x, Devices[x]))
+        Domoticz.Debug("> Device {} ID:          {}".format(x, Devices[x].ID))
+        Domoticz.Debug("> Device {} Name:        {}".format(x, Devices[x].Name))
+        Domoticz.Debug("> Device {} DeviceID:    {}".format(x, Devices[x].DeviceID))
+        Domoticz.Debug("> Device {} Description: {}".format(x, Devices[x].Description))
+        Domoticz.Debug("> Device {} nValue:      {}".format(x, Devices[x].nValue))
+        Domoticz.Debug("> Device {} sValue:      {}".format(x, Devices[x].sValue))
+        Domoticz.Debug("> Device {} LastLevel:   {}".format(x, Devices[x].LastLevel))
 
 #UPDATE THE DEVICE BY USING THE NAME OF THE DEVICE
 def UpdateDeviceByName(name, nValue, sValue, Image=-1, BatteryLevel=255):
@@ -429,7 +433,7 @@ def TimeoutDevice(All, Unit=0):
 
 #CREATE ALL THE DEVICES (USED)
 def CreateDevicesUsed():
-    if (_UNIT_DIMMER not in Devices):
+    if _UNIT_DIMMER not in Devices:
         Domoticz.Device(Name="Cooling Fan", Unit=_UNIT_DIMMER, TypeName="Dimmer", Image=Images[_IMAGE].ID, Used=1).Create()
 
 #CREATE ALL THE DEVICES (NOT USED)
