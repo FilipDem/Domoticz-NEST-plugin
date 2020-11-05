@@ -22,7 +22,7 @@
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 #
 """
-<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="1.0.0">
+<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="1.1.0">
     <description>
         <h2>Instructions</h2>
         The values of <b>issue_token</b> and <b>cookies</b> are specific to your Google Account.<br/>
@@ -115,20 +115,20 @@ class BasePlugin:
 
     def NestUpdate(self):
         self.nest_update_status = _NEST_UPDATE_STATUS_BUSY
-        Domoticz.Debug("Enter update thread")
+        Domoticz.Debug("> Entering update thread")
         if self.myNest.UpdateDevices():
             self.access_error_generated = 0
         else:
-            Domoticz.Error(self.myNest.GetAccessError())
+            Domoticz.Error("> {}".format(self.myNest.GetAccessError()))
             TimeoutDevice(All=True)
             if self.access_error_generated <= 0:
                 self.access_error_generated = 12 * 60 * 60 # 12 hours
-        Domoticz.Debug("Exit update thread")
+        Domoticz.Debug("> Exit update thread")
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
     def NestPushUpdate(self, device=None, field=None, value=None, device_name=None):
         self.nest_update_status = _NEST_UPDATE_STATUS_UPDATE_SWITCH
-        Domoticz.Debug("Start thread Push")
+        Domoticz.Debug("> Entering push thread")
         if field == _NEST_HEATING_TEMP:
             if self.myNest.SetTemperature(device, value):
                 UpdateDeviceByName(device_name, value, value, Images[_IMAGE_NEST_HEATING].ID)
@@ -150,17 +150,12 @@ class BasePlugin:
                     UpdateDeviceByName(device_name, 1, 1, Images[_IMAGE_NEST_HEATING_OFF].ID)
                 else:
                     UpdateDeviceByName(device_name, 0, 0, Images[_IMAGE_NEST_HEATING_OFF].ID)
-        Domoticz.Debug("End thread Push")
+        Domoticz.Debug("> Exit push thread")
         self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
     def onStart(self):
-        Domoticz.Debug("onStart called")
-
         # Debugging On/Off
-        if Parameters["Mode6"] == "Debug":
-            self.debug = _DEBUG_ON
-        else:
-            self.debug = _DEBUG_OFF
+        self.debug = _DEBUG_ON if Parameters["Mode6"] == "Debug" else _DEBUG_OFF
         Domoticz.Debugging(self.debug)
 
         # Check if images are in database
@@ -174,7 +169,7 @@ class BasePlugin:
             Domoticz.Image("Nest Heating Off.zip").Create()
         if _IMAGE_NEST_PROTECT not in Images:
             Domoticz.Image("Nest Protect.zip").Create()
-        Domoticz.Debug("Images created.")
+        Domoticz.Debug("> Images created")
 
         # Set all devices as timed out
         TimeoutDevice(All=True)
@@ -183,35 +178,35 @@ class BasePlugin:
         self.myNest = nest.Nest(Parameters["Mode1"], Parameters["Mode2"])
         #self.NestThread = threading.Thread(name="NestUpdate", target=BasePlugin.NestUpdate, args=(self,)).start()
 
-    def onStop(self):
-        Domoticz.Debug("onStop called")
+        Domoticz.Debug("> Plugin started")
 
+    def onStop(self):
         self.myNest.terminate()
-        if (self.NestThread is not None) and self.NestThread.isAlive():
+        if self.NestThread is not None and self.NestThread.isAlive():
             self.NestThread.join(1)
 
         # Wait until queue thread has exited
-        Domoticz.Debug("Threads still active: " + str(threading.active_count()) + ", should be 1.")
-        Domoticz.Debug("Current thread (plugin): "+threading.current_thread().name)
-        while (threading.active_count() > 1):
+        Domoticz.Debug("> Threads still active: {}, should be 1".format(threading.active_count()))
+        Domoticz.Debug("> Current thread (plugin): {}".format(threading.current_thread().name))
+        while threading.active_count() > 1:
             for thread in threading.enumerate():
-                if (thread.name != threading.current_thread().name):
-                    Domoticz.Log("'" + thread.name + "' is still running, waiting otherwise Domoticz will abort on plugin exit.")
+                if thread.name != threading.current_thread().name:
+                    Domoticz.Log("'{}' is still running, waiting otherwise Domoticz will abort on plugin exit".format(thread.name))
             time.sleep(0.5)
 
+        Domoticz.Debug("> Plugin stopped")
         time.sleep(1)
 
     def onConnect(self, Connection, Status, Description):
-        Domoticz.Debug("onConnect called")
+        Domoticz.Debug("> onConnect called, ignored")
 
     def onMessage(self, Connection, Data):
-        Domoticz.Debug("onMessage called")
+        Domoticz.Debug("> onMessage called, ignored")
 
     def onCommand(self, Unit, Command, Level, Hue):
-        Domoticz.Debug("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
         for device in self.myNest.device_list:
             info = self.myNest.GetDeviceInformation(device)
-            Domoticz.Debug(info['Where'] + ' - ' + Devices[Unit].Name)
+            Domoticz.Debug("> {} - {}".format(info['Where'], Devices[Unit].Name))
             if info['Where'] in Devices[Unit].Name:
                 if _NEST_HEATING_TEMP in Devices[Unit].Name:
                     device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
@@ -248,37 +243,36 @@ class BasePlugin:
                     if self.NestPushThread is None:
                         self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING, Level, device_name)).start()
                 break
+        Domoticz.Debug("> onCommand done for unit {}: parameter '{}', level: {}".format(Unit, Command, Level))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
-        Domoticz.Debug("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
+        Domoticz.Debug("> Notification: {}, {}, {}, {}, {}, {}, {}".format(
+            Name, Subject, Text, Status, Priority, Sound, ImageFile
+        ))
 
     def onDisconnect(self, Connection):
-        Domoticz.Debug("onDisconnect called")
+        Domoticz.Debug("> onDisconnect called, ignored")
 
     def onHeartbeat(self):
-        Domoticz.Debug("onHeartbeat called")
         self.runAgain -= 1
         if self.runAgain <= 0:
-
             if self.NestThread is None:
                 self.NestThread = threading.Thread(name="NestThread", target=BasePlugin.NestUpdate, args=(self,)).start()
 
             # Run again following the period in the settings
-            self.runAgain = _MINUTE*int(Parameters["Mode5"])
+            self.runAgain = _MINUTE * int(Parameters["Mode5"])
 
             # Generate en error every x time
             if self.access_error_generated > 0:
-                self.access_error_generated -= _MINUTE*int(Parameters["Mode5"])
+                self.access_error_generated -= _MINUTE * int(Parameters["Mode5"])
 
         else:
-            Domoticz.Debug("onHeartbeat called, run again in "+str(self.runAgain)+" heartbeats.")
-
             if self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated == 0:
-                Domoticz.Debug("Number of NEST devices: " + str(len(self.myNest.device_list)+len(self.myNest.protect_list)))
+                Domoticz.Debug("> Count of Nest devices: {}".format(len(self.myNest.device_list) + len(self.myNest.protect_list)))
 
                 for device in self.myNest.device_list:
                     info = self.myNest.GetDeviceInformation(device)
-                    Domoticz.Debug(json.dumps(info))
+                    Domoticz.Debug("> {}".format(json.dumps(info)))
 
                     #Update NEST HEATING and create device if required
                     device_name = info['Where'] + ' ' + _NEST_HEATING
@@ -325,7 +319,7 @@ class BasePlugin:
 
                 for device in self.myNest.protect_list:
                     info = self.myNest.GetProtectInformation(device)
-                    Domoticz.Debug(json.dumps(info))
+                    Domoticz.Debug("> {}".format(json.dumps(info)))
                     #Create device if required and allowed
                     device_name = info['Where'] + ' ' + _NEST_PROTECT
                     if not fnmatch.filter([Devices[x].Name for x in Devices], '*'+device_name):
@@ -336,6 +330,8 @@ class BasePlugin:
                         UpdateDeviceByName(device_name, 0, 0, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
 
                 self.nest_update_status = _NEST_UPDATE_STATUS_NONE
+
+        Domoticz.Debug("> onHeartbeat done ({})".format(self.runAgain))
 
 global _plugin
 _plugin = BasePlugin()
@@ -380,15 +376,15 @@ def onHeartbeat():
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
-            Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
-    Domoticz.Debug("Device count: " + str(len(Devices)))
+            Domoticz.Debug("> '" + x + "':'" + str(Parameters[x]) + "'")
+    Domoticz.Debug("> Device count: " + str(len(Devices)))
     for x in Devices:
-        Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
-        Domoticz.Debug("Device ID:       '" + str(Devices[x].ID) + "'")
-        Domoticz.Debug("Device Name:     '" + Devices[x].Name + "'")
-        Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
-        Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
-        Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
+        Domoticz.Debug("> Device:           " + str(x) + " - " + str(Devices[x]))
+        Domoticz.Debug("> Device ID:       '" + str(Devices[x].ID) + "'")
+        Domoticz.Debug("> Device Name:     '" + Devices[x].Name + "'")
+        Domoticz.Debug("> Device nValue:    " + str(Devices[x].nValue))
+        Domoticz.Debug("> Device sValue:   '" + Devices[x].sValue + "'")
+        Domoticz.Debug("> Device LastLevel: " + str(Devices[x].LastLevel))
 
 #UPDATE THE DEVICE BY USING THE NAME OF THE DEVICE
 def UpdateDeviceByName(name, nValue, sValue, Image=-1, BatteryLevel=255):
@@ -405,9 +401,9 @@ def UpdateDeviceByName(name, nValue, sValue, Image=-1, BatteryLevel=255):
 def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
     if Unit in Devices:
         if Devices[Unit].nValue != int(nValue) or Devices[Unit].sValue != str(sValue) or Devices[Unit].TimedOut != TimedOut or Devices[Unit].Image != Image or AlwaysUpdate:
-            Domoticz.Debug("Going to Update " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
+            Domoticz.Debug("> Going to update {}: {} - '{}'".format(Devices[Unit].Name, nValue, sValue))
             Devices[Unit].Update(nValue=int(nValue), sValue=str(sValue), Image=Image, TimedOut=TimedOut)
-            Domoticz.Debug("Updated " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
+            Domoticz.Debug("> Updated {}: {} - '{}'".format(Devices[Unit].Name, nValue, sValue))
         else:
             Devices[Unit].Touch()
 
@@ -415,9 +411,13 @@ def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
 def UpdateDeviceBatSig(Unit, BatteryLevel=255, SignalLevel=12):
     if Unit in Devices:
         if Devices[Unit].BatteryLevel != int(BatteryLevel) or Devices[Unit].SignalLevel != int(SignalLevel):
-            Domoticz.Debug("Going to Update " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
+            Domoticz.Debug("> Going to update bat/sig {}: {} - '{}' - {} - {}".format(
+                Devices[Unit].Name, Devices[Unit].nValue, Devices[Unit].sValue, BatteryLevel, SignalLevel
+            ))
             Devices[Unit].Update(nValue=Devices[Unit].nValue, sValue=Devices[Unit].sValue, BatteryLevel=int(BatteryLevel), SignalLevel=int(SignalLevel))
-            Domoticz.Debug("Updated " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
+            Domoticz.Debug("> Updated bat/sig {}: {} - '{}' - {} - {}".format(
+                Devices[Unit].Name, Devices[Unit].nValue, Devices[Unit].sValue, BatteryLevel, SignalLevel
+            ))
 
 #SET DEVICE ON TIMED-OUT (OR ALL DEVICES)
 def TimeoutDevice(All, Unit=0):
