@@ -22,9 +22,7 @@
 import requests
 import json
 import time
-import os.path
-import sys
-import datetime
+from datetime import datetime
 import pytz
 import tzlocal
 
@@ -38,7 +36,8 @@ except:
 
 class Nest():
 
-    USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
+    USER_AGENT = 'Domoticz Nest/1.0'
+    REQUEST_TIMEOUT = 10.0
 
     def __init__(self, issue_token, cookie):
         self._issue_token = issue_token
@@ -58,7 +57,6 @@ class Nest():
         #self._ReadCache()
         self.device_list = []
         self.protect_list = []
-        self.request_timeout = 10.0
         self.where_map = {}
 
     def terminate(self):
@@ -74,7 +72,7 @@ class Nest():
 #                     self._transport_url = data['transport_url']
 #                     self._user = data['user']
 #                     self._cache_expiration_text = data['cache_expiration'] #2019-11-23T11:16:51.640Z
-#                     self._cache_expiration = datetime.datetime.strptime(self._cache_expiration, '%Y-%m-%dT%H:%M:%S.%fZ')
+#                     self._cache_expiration = datetime.strptime(self._cache_expiration, '%Y-%m-%dT%H:%M:%S.%fZ')
 #             except:
 #                 pass
 
@@ -91,85 +89,91 @@ class Nest():
 #             pass
 
     def _GetBearerTokenUsingGoogleCookiesIssue_token(self):
-        if self._running:
-            url = self._issue_token
-            headers = { 'Sec-Fetch-Mode': 'cors',
-                        'User-Agent': self.USER_AGENT,
-                        'X-Requested-With': 'XmlHttpRequest',
-                        'Referer': 'https://accounts.google.com/o/oauth2/iframe',
-                        'Cookie': self._cookie
-                      }
-            try:
-                request = requests.get(url, headers=headers, timeout=self.request_timeout)
-                request.raise_for_status()
-                result = request.json()
-                if 'error' in result and 'detail' in result:
-                    if result['error'] == 'USER_LOGGED_OUT':
-                        self._nest_access_error = 'API returned error: {}'.format(result['detail'])
-                    else:
-                        self._nest_access_error = 'Invalid IssueToken/Cookie: %s (%s)' % (result['error'], result['detail'])
-                elif 'access_token' in result and 'token_type' in result and 'id_token' in result:
-                    self._access_token = result['access_token']
-                    self._access_token_type = result['token_type']
-                    self._id_token = result['id_token']
-                    self._nest_access_error = None
-                    log("Got bearer token")
-                    return True
+        if not self._running:
+            return False
 
-            except requests.exceptions.Timeout as e:
-                self._nest_access_error = 'API request timed out'
-            except requests.exceptions.ConnectionError as e:
-                self._nest_access_error = 'Connection error API request'
-            except requests.exceptions.HTTPError as e:
-                self._nest_access_error = 'API request failed (status {})'.format(e.response.status_code)
-            except json.JSONDecodeError as e:
-                self._nest_access_error = 'Invalid API response'
+        url = self._issue_token
+        headers = {
+            'Sec-Fetch-Mode': 'cors',
+            'User-Agent': self.USER_AGENT,
+            'X-Requested-With': 'XmlHttpRequest',
+            'Referer': 'https://accounts.google.com/o/oauth2/iframe',
+            'Cookie': self._cookie,
+        }
+        try:
+            request = requests.get(url, headers=headers, timeout=self.REQUEST_TIMEOUT)
+            request.raise_for_status()
+            result = request.json()
+            if 'error' in result and 'detail' in result:
+                if result['error'] == 'USER_LOGGED_OUT':
+                    self._nest_access_error = 'API returned error: {}'.format(result['detail'])
+                else:
+                    self._nest_access_error = 'Invalid IssueToken/Cookie: %s (%s)' % (result['error'], result['detail'])
+            elif 'access_token' in result and 'token_type' in result and 'id_token' in result:
+                self._access_token = result['access_token']
+                self._access_token_type = result['token_type']
+                self._id_token = result['id_token']
+                self._nest_access_error = None
+                log("Got bearer token")
+                return True
 
+        except requests.exceptions.Timeout as e:
+            self._nest_access_error = 'API request timed out'
+        except requests.exceptions.ConnectionError as e:
+            self._nest_access_error = 'Connection error API request'
+        except requests.exceptions.HTTPError as e:
+            self._nest_access_error = 'API request failed (status {})'.format(e.response.status_code)
+        except json.JSONDecodeError as e:
+            self._nest_access_error = 'Invalid API response'
         return False
 
     def _UseBearerTokenToGetAccessTokenAndUserId(self):
-        if self._running:
-            url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
-            data = { 'embed_google_oauth_access_token': True,
-                     'expire_after': '3600s',
-                     'google_oauth_access_token': self._access_token,
-                     'policy_id': 'authproxy-oauth-policy'
-                   }
-            headers = { 'Authorization': self._access_token_type + ' ' + self._access_token,
-                        'User-Agent': self.USER_AGENT,
-                        'X-Goog-API-Key': 'AIzaSyAdkSIMNc51XGNEAYWasX9UOWkS5P6sZE4', #Nest website's (public) API key
-                        'Referer': 'https://home.nest.com'
-                      }
-            request = self.PostMessageWithRetries(url, data, headers=headers, retries=2)
-            if request != None:
-                result = request.json()
-                self._nest_user_id = result['claims']['subject']['nestId']['id']
-                self._nest_access_token = result['jwt']
-                self._cache_expiration_text = result['claims']['expirationTime']
-                log("Got access token and user id")
-                return True
-        return False
+        url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
+        data = {
+            'embed_google_oauth_access_token': True,
+             'expire_after': '3600s',
+             'google_oauth_access_token': self._access_token,
+             'policy_id': 'authproxy-oauth-policy',
+        }
+        headers = {
+            'Authorization': self._access_token_type + ' ' + self._access_token,
+            'User-Agent': self.USER_AGENT,
+            'X-Goog-API-Key': 'AIzaSyAdkSIMNc51XGNEAYWasX9UOWkS5P6sZE4', #Nest website's (public) API key
+            'Referer': 'https://home.nest.com',
+        }
+        request = self.PostMessageWithRetries(url, data, headers=headers, retries=2)
+        if request is None:
+            return False
+
+        result = request.json()
+        self._nest_user_id = result['claims']['subject']['nestId']['id']
+        self._nest_access_token = result['jwt']
+        self._cache_expiration_text = result['claims']['expirationTime']
+        log("Got access token and user id")
+        return True
 
     def _GetUser(self):
-        if self._running:
-            url = 'https://home.nest.com/api/0.1/user/' + self._nest_user_id + '/app_launch'
-            data = { 'known_bucket_types': ['user'],
-                     'known_bucket_versions': []
-                   }
-            request = self.PostMessageWithRetries(url, data, retries=2)
-            if request == None:
-                return False
-            result = request.json()
-            self._transport_url = result['service_urls']['urls']['transport_url']
-            for bucket in result['updated_buckets']:
-                if bucket['object_key'][:5] == 'user.':
-                    self._user = bucket['object_key']
-                    break
-            if not self._user:
-                self._user = 'user.' + self._nest_user_id
-            log("Got user")
-            return True
-        return False
+        url = 'https://home.nest.com/api/0.1/user/' + self._nest_user_id + '/app_launch'
+        data = {
+            'known_bucket_types': [ 'user' ],
+            'known_bucket_versions': [],
+        }
+        request = self.PostMessageWithRetries(url, data, retries=2)
+        if request is None:
+            return False
+
+        result = request.json()
+        self._transport_url = result['service_urls']['urls']['transport_url']
+
+        for bucket in result['updated_buckets']:
+            if bucket['object_key'][:5] == 'user.':
+                self._user = bucket['object_key']
+                break
+        if not self._user:
+            self._user = 'user.' + self._nest_user_id
+
+        log("Got user")
+        return True
 
     def UpdateDevices(self):
         self._nest_access_error = None
@@ -185,28 +189,33 @@ class Nest():
 
     def GetNestCredentials(self):
         #self._ReadCache()
-        current_time = datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone())
-        if self._cache_expiration is None or self._cache_expiration < current_time:
-            if self._GetBearerTokenUsingGoogleCookiesIssue_token():
-                if self._UseBearerTokenToGetAccessTokenAndUserId():
-                    if self._GetUser():
-                        self._cache_expiration = datetime.datetime.strptime(self._cache_expiration_text + current_time.strftime("%z"), '%Y-%m-%dT%H:%M:%S.%fZ%z')
-                        #self._WriteCache()
-                        return True
-            #log(self._nest_access_error)
+        current_time = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone())
+
+        if self._cache_expiration is not None and self._cache_expiration > current_time:
+            return True
+
+        if not self._GetBearerTokenUsingGoogleCookiesIssue_token():
             return False
-        #Cache not expired
+        if not self._UseBearerTokenToGetAccessTokenAndUserId():
+            return False
+        if not self._GetUser():
+            return False
+
+        self._cache_expiration = datetime.strptime(self._cache_expiration_text + current_time.strftime("%z"), '%Y-%m-%dT%H:%M:%S.%fZ%z')
+        #self._WriteCache()
         return True
 
     def GetDevicesAndStatus(self):
         if self._running:
             url = self._transport_url + '/v3/mobile/' + self._user
-            headers = { 'X-nl-protocol-version': '1',
-                        'X-nl-user-id': self._nest_user_id,
-                        'Authorization': 'Basic ' + self._nest_access_token,
-                      }
+            headers = {
+                'X-nl-protocol-version': '1',
+                'X-nl-user-id': self._nest_user_id,
+                'Authorization': 'Basic ' + self._nest_access_token,
+                'User-Agent': self.USER_AGENT,
+            }
             try:
-                request = requests.get(url, headers=headers, timeout=self.request_timeout)
+                request = requests.get(url, headers=headers, timeout=self.REQUEST_TIMEOUT)
             except requests.exceptions.Timeout as e:
                 self._nest_access_error = 'Connection timeout'
                 return False
@@ -245,52 +254,58 @@ class Nest():
 
     def GetDeviceInformation(self, device):
         structure = self._status['link'][device]['structure'][10:]
-        info = { 'Name': str(self._status['structure'][structure]['name']),
-                 'Away': self._status['structure'][structure]['away'],
-                 'Target_temperature': self._status['shared'][device]['target_temperature'],
-                 'Current_temperature': self._status['shared'][device]['current_temperature'],
-                 'Temperature_scale':  self._status['device'][device]['temperature_scale'],
-                 'Humidity': self._status['device'][device]['current_humidity'],
-                 'Eco': self._status['device'][device]['eco']['mode'] != 'schedule', #if not 'schedule' --> in eco-mode
-                 'Heating': self._status['shared'][device]['hvac_heater_state'],
-                 'Target_mode': self._status['shared'][device]['target_temperature_type'],
-                 'Target_temperature_low': self._status['shared'][device]['target_temperature_low'],
-                 'Target_temperature_high': self._status['shared'][device]['target_temperature_high'],
-                 'Where': self.where_map[self._status['device'][device]['where_id']]
-               }
+        info = {
+            'Name': str(self._status['structure'][structure]['name']),
+            'Away': self._status['structure'][structure]['away'],
+            'Target_temperature': self._status['shared'][device]['target_temperature'],
+            'Current_temperature': self._status['shared'][device]['current_temperature'],
+            'Temperature_scale':  self._status['device'][device]['temperature_scale'],
+            'Humidity': self._status['device'][device]['current_humidity'],
+            'Eco': self._status['device'][device]['eco']['mode'] != 'schedule', #if not 'schedule' --> in eco-mode
+            'Heating': self._status['shared'][device]['hvac_heater_state'],
+            'Target_mode': self._status['shared'][device]['target_temperature_type'],
+            'Target_temperature_low': self._status['shared'][device]['target_temperature_low'],
+            'Target_temperature_high': self._status['shared'][device]['target_temperature_high'],
+            'Where': self.where_map[self._status['device'][device]['where_id']],
+        }
         return info
 
     def GetProtectInformation(self, device):
         #log(self._status['topaz'][device])
-        info = { 'Smoke_status': self._status['topaz'][device]['smoke_status'],
-                 'Serial_number': str(self._status['topaz'][device]['serial_number']),
-                 'Co_previous_peak': str(self._status['topaz'][device]['co_previous_peak']),
-                 'Where': self.where_map[self._status['topaz'][device]['spoken_where_id']],
-                 'Battery_low': str(self._status['topaz'][device]['battery_health_state']),
-                 'Battery_level': str(self._status['topaz'][device]['battery_level'])
-               }
+        info = {
+            'Smoke_status': self._status['topaz'][device]['smoke_status'],
+            'Serial_number': str(self._status['topaz'][device]['serial_number']),
+            'Co_previous_peak': str(self._status['topaz'][device]['co_previous_peak']),
+            'Where': self.where_map[self._status['topaz'][device]['spoken_where_id']],
+            'Battery_low': str(self._status['topaz'][device]['battery_health_state']),
+            'Battery_level': str(self._status['topaz'][device]['battery_level']),
+        }
         return info
 
     def SetThermostat(self, device, mode): #False = set thermostat off
         url = self._transport_url + '/v2/put/shared.' + device
-        data = { 'target_change_pending': True,
-                 'target_temperature_type': mode
-               }
+        data = {
+            'target_change_pending': True,
+            'target_temperature_type': mode,
+        }
         return self.UpdateNest(url, data, "Thermostat set")
 
     def SetTemperature(self, device, target_temperature):
         url = self._transport_url + '/v2/put/shared.' + device
-        data = { 'target_change_pending': True,
-                 'target_temperature': target_temperature
-               }
+        data = {
+            'target_change_pending': True,
+            'target_temperature': target_temperature,
+        }
         return self.UpdateNest(url, data, "Temperature set")
 
     def SetAway(self, device, is_away, eco_when_away=True):
         url = self._transport_url + '/v2/put/structure.' + self._status['link'][device]['structure'][10:]
-        data = { 'away': is_away,
-                 'away_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
-                 'away_setter': 0
-               }
+        away_timestamp = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()
+        data = {
+            'away': is_away,
+            'away_timestamp': round(away_timestamp),
+            'away_setter': 0,
+        }
         if self.UpdateNest(url, data, "Away set"):
             if is_away and eco_when_away:
                 self.SetEco(device, 'manual-eco')
@@ -300,32 +315,41 @@ class Nest():
 
     def SetEco(self, device, mode): # mode equals 'manual-eco' or 'schedule'
         url = self._transport_url + '/v2/put/device.' + device
-        data = {}
-        data['eco'] = { 'mode': mode,
-                        'mode_update_timestamp': round(datetime.datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()),
-                        'touched_by': 4
-                      }
+        mode_update_timestamp = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()
+        data = {
+            'eco': {
+                'mode': mode,
+                'mode_update_timestamp': round(mode_update_timestamp),
+                'touched_by': 4,
+            }
+        }
         return self.UpdateNest(url, data, "Eco set")
 
     def UpdateNest(self, url, data, success_msg, retries=2):
         request = self.PostMessageWithRetries(url=url, data=data)
-        if request is not None:
-            log(success_msg)
-        return request != None
+        if request is None:
+            return False
+        log(success_msg)
+        return True
 
     def PostMessageWithRetries(self, url, data, headers=None, retries=1):
         if headers == None:
-            headers = { 'X-nl-protocol-version': '1',
-                        'X-nl-user-id': self._nest_user_id,
-                        'Authorization': 'Basic ' + self._nest_access_token,
-                        'Content-type': 'text/json'
-                      }
+            headers = {
+                'X-nl-protocol-version': '1',
+                'X-nl-user-id': self._nest_user_id,
+                'Authorization': 'Basic ' + self._nest_access_token,
+                'Content-type': 'text/json',
+                'User-Agent': self.USER_AGENT,
+            }
 
         for i in range(retries):
+            if not self._running:
+                return None
+
             if i > 0:
                 log("Retry API request")
             try:
-                request = requests.post(url=url, data=json.dumps(data), headers=headers, timeout=self.request_timeout)
+                request = requests.post(url=url, json=data, headers=headers, timeout=self.REQUEST_TIMEOUT)
                 if request.status_code == 200:
                     self._nest_access_error = None
                     return request
@@ -340,24 +364,21 @@ class Nest():
         return None
 
 if __name__ == "__main__":
+    import os
     issue_token = os.environ.get('NEST_ISSUE_TOKEN')
     cookie = os.environ.get('NEST_COOKIE')
     if issue_token is None or cookie is None:
         log("Please set environment variables NEST_ISSUE_TOKEN and NEST_ISSUE_TOKEN")
         exit(1)
     thermostat = Nest(issue_token, cookie)
-    while True:
-        if thermostat.UpdateDevices():
-            for device in thermostat.device_list:
-                info = thermostat.GetDeviceInformation(device)
-                log(info)
-                #log(thermostat.SetTemperature(device, float(info['Target_temperature'])))
-                #log(thermostat.SetAway(device, info['Away']))
-                #log(thermostat.SetEco(device, 'manual-eco'))
-                #log(thermostat.SetThermostat(device, 'off'))
-            for device in thermostat.protect_list:
-                log(thermostat.GetProtectInformation(device))
-        log(thermostat.GetAccessError())
-        log("Sleep for 10 seconds...")
-        time.sleep(10)
-        log()
+    if thermostat.UpdateDevices():
+        for device in thermostat.device_list:
+            info = thermostat.GetDeviceInformation(device)
+            log(info)
+            #log(thermostat.SetTemperature(device, float(info['Target_temperature'])))
+            #log(thermostat.SetAway(device, info['Away']))
+            #log(thermostat.SetEco(device, 'manual-eco'))
+            #log(thermostat.SetThermostat(device, 'off'))
+        for device in thermostat.protect_list:
+            log(thermostat.GetProtectInformation(device))
+    log(thermostat.GetAccessError())
