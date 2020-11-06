@@ -232,6 +232,10 @@ class Nest():
             if request.status_code == 200:
                 self._status = request.json()
 
+#                 for key in self._status:
+#                 for key in ['user', 'structure']:
+#                     log("{}: {}".format(key, json.dumps(self._status[key])))
+
                 #Thermostats
                 del self.device_list[:]
                 if 'user' in self._status and self._nest_user_id in self._status['user'] and 'structures' in self._status['user'][self._nest_user_id]:

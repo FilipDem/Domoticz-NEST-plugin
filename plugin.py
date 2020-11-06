@@ -107,8 +107,6 @@ class BasePlugin:
         self.nest_update_status = _NEST_UPDATE_STATUS_NONE
         self.NestThread = None
         self.NestPushThread = None
-        self.device_to_update = None
-        self.device_to_update_level = None
         self.access_error_generated = 0
         self.runAgain = 1
         return
@@ -154,14 +152,15 @@ class BasePlugin:
         self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
     def onStart(self):
-        # Debugging On/Off
+        # Set debug level according to user setting
         self.debug = _DEBUG_ON if Parameters["Mode6"] == "Debug" else _DEBUG_OFF
         Domoticz.Debugging(self.debug)
 
+        # Show plugin configuration in log
         if self.debug == _DEBUG_ON:
             DumpConfigToLog()
 
-        # Check if images are in database
+        # Create images if necessary
         if _IMAGE_NEST_AWAY not in Images:
             Domoticz.Image("Nest Away.zip").Create()
         if _IMAGE_NEST_ECO not in Images:
@@ -177,14 +176,14 @@ class BasePlugin:
         # Set all devices as timed out
         TimeoutDevice(All=True)
 
-        # Start thread Nest
+        # Create Nest instance
         self.myNest = nest.Nest(Parameters["Mode1"], Parameters["Mode2"])
-        #self.NestThread = threading.Thread(name="NestUpdate", target=BasePlugin.NestUpdate, args=(self,)).start()
 
         Domoticz.Debug("> Plugin started")
 
     def onStop(self):
         self.myNest.terminate()
+
         if self.NestThread is not None and self.NestThread.isAlive():
             self.NestThread.join(1)
 
@@ -242,7 +241,7 @@ class BasePlugin:
                 if self.NestPushThread is None:
                     self.NestPushThread = threading.Thread(name="NestPushThread", target=BasePlugin.NestPushUpdate, args=(self, device, _NEST_HEATING, Level, Unit)).start()
 
-        Domoticz.Debug("> onCommand done for unit {}: parameter '{}', level: {}".format(Unit, Command, Level))
+        Domoticz.Status("Processed {} to {} for unit {}".format(Command, Level, Unit))
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Debug("> Notification: {}, {}, {}, {}, {}, {}, {}".format(
@@ -267,8 +266,7 @@ class BasePlugin:
 
         else:
             if self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated == 0:
-                Domoticz.Debug("> Count of Nest devices: {}".format(len(self.myNest.device_list) + len(self.myNest.protect_list)))
-
+                updated_units = 0
                 for nest_device in self.myNest.device_list:
                     info = self.myNest.GetDeviceInformation(nest_device)
                     Domoticz.Debug("> {}".format(json.dumps(info)))
@@ -288,6 +286,7 @@ class BasePlugin:
                             UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_HEATING_OFF].ID)
                         else:
                             UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_HEATING].ID)
+                    updated_units += 1
 
                     #Update NEST AWAY and create device if required
                     device_name = info['Where'] + ' ' + _NEST_AWAY
@@ -300,6 +299,7 @@ class BasePlugin:
                         UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_AWAY].ID)
                     else:
                         UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_AWAY].ID)
+                    updated_units += 1
 
                     #Update NEST ECO MODE and create device if required
                     device_name = info['Where'] + ' ' + _NEST_ECO_MODE
@@ -312,6 +312,7 @@ class BasePlugin:
                         UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_ECO].ID)
                     else:
                         UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_ECO].ID)
+                    updated_units += 1
 
                     #Update NEST TEMP/HUMIDITY and create device if required
                     device_name = info['Where'] + ' ' + _NEST_TEMP_HUM
@@ -321,6 +322,7 @@ class BasePlugin:
                         description = CreateDescription(device_name)
                         Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=82, Subtype=5, Switchtype=0, Used=1).Create()
                     UpdateDeviceByUnit(unit, info['Current_temperature'], '%.1f;%.0f;0'%(info['Current_temperature'], info['Humidity']))
+                    updated_units += 1
 
                     #Update NEST HEATING TEMPERATURE and create device if required
                     device_name = info['Where'] + ' ' + _NEST_HEATING_TEMP
@@ -330,6 +332,7 @@ class BasePlugin:
                         description = CreateDescription(device_name)
                         Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=242, Subtype=1, Switchtype=0, TypeName=info['Temperature_scale'], Used=1).Create()
                     UpdateDeviceByUnit(unit, info['Target_temperature'], info['Target_temperature'])
+                    updated_units += 1
 
                 for nest_device in self.myNest.protect_list:
                     info = self.myNest.GetProtectInformation(nest_device)
@@ -345,7 +348,12 @@ class BasePlugin:
                         UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
                     else:
                         UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
+                    updated_units += 1
 
+                Domoticz.Status("Updated {} units for {} device(s)".format(
+                    updated_units,
+                    len(self.myNest.device_list) + len(self.myNest.protect_list)
+                ))
                 self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
         Domoticz.Debug("> onHeartbeat done ({})".format(self.runAgain))
@@ -406,6 +414,7 @@ def DumpConfigToLog():
         Domoticz.Debug("> Device {} LastLevel:   {}".format(x, Devices[x].LastLevel))
 
 def CreateNewUnit():
+    # Find the next available unit, starting from 1
     unit = 1
     while unit in Devices:
         unit += 1
