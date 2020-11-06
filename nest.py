@@ -19,10 +19,11 @@
 #     Several network calls will appear in the Dev Tools window. Click on the last iframe call.
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 
-import requests
-import json
 import time
 from datetime import datetime
+import json
+import requests
+import traceback
 import pytz
 import tzlocal
 
@@ -176,11 +177,15 @@ class Nest():
         return True
 
     def UpdateDevices(self):
-        self._nest_access_error = None
-        if self.GetNestCredentials():
-            return self.GetDevicesAndStatus()
-        else:
-            return False
+        try:
+            self._nest_access_error = None
+            if self.GetNestCredentials():
+                log(str(self.GetDevicesAndStatus))
+                return self.GetDevicesAndStatus()
+        except Exception as e:
+            self._nest_access_error = "Unforseen exception occured in Nest class: {}".format(e)
+            log(traceback.format_exc())
+        return False
 
     def GetAccessError(self):
         if not self._nest_access_error:
@@ -201,56 +206,65 @@ class Nest():
         if not self._GetUser():
             return False
 
-        self._cache_expiration = datetime.strptime(self._cache_expiration_text + current_time.strftime("%z"), '%Y-%m-%dT%H:%M:%S.%fZ%z')
+        try:
+            string_date = self._cache_expiration_text + current_time.strftime("%z")
+            format = '%Y-%m-%dT%H:%M:%S.%fZ%z'
+            self._cache_expiration = datetime.strptime(string_date, format)
+        except TypeError:
+            # https://stackoverflow.com/questions/40392842/typeerror-in-strptime-in-python-3-4
+            self._cache_expiration = datetime(*(time.strptime(string_date, format)[0:6]))
+
         #self._WriteCache()
         return True
 
     def GetDevicesAndStatus(self):
-        if self._running:
-            url = self._transport_url + '/v3/mobile/' + self._user
-            headers = {
-                'X-nl-protocol-version': '1',
-                'X-nl-user-id': self._nest_user_id,
-                'Authorization': 'Basic ' + self._nest_access_token,
-                'User-Agent': self.USER_AGENT,
-            }
-            try:
-                request = requests.get(url, headers=headers, timeout=self.REQUEST_TIMEOUT)
-            except requests.exceptions.Timeout as e:
-                self._nest_access_error = 'Connection timeout'
-                return False
+        if not self._running:
+            return False
 
-            if request.status_code == 200:
-                self._status = request.json()
+        url = self._transport_url + '/v3/mobile/' + self._user
+        headers = {
+            'X-nl-protocol-version': '1',
+            'X-nl-user-id': self._nest_user_id,
+            'Authorization': 'Basic ' + self._nest_access_token,
+            'User-Agent': self.USER_AGENT,
+        }
+        try:
+            request = requests.get(url, headers=headers, timeout=self.REQUEST_TIMEOUT)
+        except requests.exceptions.Timeout as e:
+            self._nest_access_error = 'Connection timeout'
+            return False
+
+        if request.status_code != 200:
+            self._nest_access_error = 'Error getting device information (http status {})'.format(request.status_code)
+            return False
+
+        self._status = request.json()
 
 #                 for key in self._status:
 #                 for key in ['user', 'structure']:
 #                     log("{}: {}".format(key, json.dumps(self._status[key])))
 #                 log(json.dumps(self._status))
 
-                #Thermostats
-                try:
-                    self.where_map = {}
-                    self.device_list = []
-                    for structure in self._status['user'][self._nest_user_id]['structures']:
-                        structure_id = structure[10:]
-                        self.where_map.update({
-                            where['where_id'] : where['name']
-                            for where in self._status['where'][structure_id]['wheres']
-                        })
-                        self.device_list += [ device[7:] for device in self._status['structure'][structure_id]['devices'] ]
-                except:
-                    pass
+        #Thermostats
+        try:
+            self.where_map = {}
+            self.device_list = []
+            for structure in self._status['user'][self._nest_user_id]['structures']:
+                structure_id = structure[10:]
+                self.where_map.update({
+                    where['where_id'] : where['name']
+                    for where in self._status['where'][structure_id]['wheres']
+                })
+                self.device_list += [ device[7:] for device in self._status['structure'][structure_id]['devices'] ]
+        except:
+            pass
 
-                #Protects
-                if 'topaz' in self._status:
-                    self.protect_list = [ str(protect) for protect in self._status['topaz'] ]
+        #Protects
+        if 'topaz' in self._status:
+            self.protect_list = [ str(protect) for protect in self._status['topaz'] ]
 
-                log("Got devices and status")
-                return True
-
-            self._nest_access_error = 'Error getting device information (http status {})'.format(request.status_code)
-        return False
+        log("Got devices and status")
+        return True
 
     def GetDeviceInformation(self, device):
         structure = self._status['link'][device]['structure'][10:]
