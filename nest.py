@@ -180,7 +180,6 @@ class Nest():
         try:
             self._nest_access_error = None
             if self.GetNestCredentials():
-                log(str(self.GetDevicesAndStatus))
                 return self.GetDevicesAndStatus()
         except Exception as e:
             self._nest_access_error = "Unforseen exception occured in Nest class: {}".format(e)
