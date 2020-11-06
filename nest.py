@@ -36,25 +36,6 @@ except:
     def log(msg=""):
         print(msg)
 
-where_map = { '00000000-0000-0000-0000-000100000000': 'Entryway',
-              '00000000-0000-0000-0000-000100000001': 'Basement',
-              '00000000-0000-0000-0000-000100000002': 'Hallway',
-              '00000000-0000-0000-0000-000100000003': 'Den',
-              '00000000-0000-0000-0000-000100000004': 'Attic', # Invisible in web UI
-              '00000000-0000-0000-0000-000100000005': 'Master Bedroom',
-              '00000000-0000-0000-0000-000100000006': 'Downstairs',
-              '00000000-0000-0000-0000-000100000007': 'Garage', # Invisible in web UI
-              '00000000-0000-0000-0000-000100000008': 'Kids Room',
-              '00000000-0000-0000-0000-000100000009': 'Garage "Hallway"', # Invisible in web UI
-              '00000000-0000-0000-0000-00010000000a': 'Kitchen',
-              '00000000-0000-0000-0000-00010000000b': 'Family Room',
-              '00000000-0000-0000-0000-00010000000c': 'Living Room',
-              '00000000-0000-0000-0000-00010000000d': 'Bedroom',
-              '00000000-0000-0000-0000-00010000000e': 'Office',
-              '00000000-0000-0000-0000-00010000000f': 'Upstairs',
-              '00000000-0000-0000-0000-000100000010': 'Dining Room'
-            }
-
 class Nest():
 
     USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36'
@@ -78,6 +59,7 @@ class Nest():
         self.device_list = []
         self.protect_list = []
         self.request_timeout = 10.0
+        self.where_map = {}
 
     def terminate(self):
         self._running = False
@@ -235,23 +217,26 @@ class Nest():
 #                 for key in self._status:
 #                 for key in ['user', 'structure']:
 #                     log("{}: {}".format(key, json.dumps(self._status[key])))
+#                 log(json.dumps(self._status))
 
                 #Thermostats
-                del self.device_list[:]
-                if 'user' in self._status and self._nest_user_id in self._status['user'] and 'structures' in self._status['user'][self._nest_user_id]:
+                try:
+                    self.where_map = {}
+                    self.device_list = []
                     for structure in self._status['user'][self._nest_user_id]['structures']:
                         structure_id = structure[10:]
-                        if 'structure' in self._status and structure_id in self._status['structure'] and 'devices' in self._status['structure'][structure_id]:
-                            for device in self._status['structure'][structure_id]['devices']:
-                                self.device_list.append(device[7:])
+                        self.where_map.update({
+                            where['where_id'] : where['name']
+                            for where in self._status['where'][structure_id]['wheres']
+                        })
+                        self.device_list += [ device[7:] for device in self._status['structure'][structure_id]['devices'] ]
+                except:
+                    pass
 
                 #Protects
-                del self.protect_list[:]
                 if 'topaz' in self._status:
-                    for protect in self._status['topaz']:
-                        self.protect_list.append(str(protect))
+                    self.protect_list = [ str(protect) for protect in self._status['topaz'] ]
 
-                #All OK
                 log("Got devices and status")
                 return True
 
@@ -271,7 +256,7 @@ class Nest():
                  'Target_mode': self._status['shared'][device]['target_temperature_type'],
                  'Target_temperature_low': self._status['shared'][device]['target_temperature_low'],
                  'Target_temperature_high': self._status['shared'][device]['target_temperature_high'],
-                 'Where': where_map[self._status['device'][device]['where_id']]
+                 'Where': self.where_map[self._status['device'][device]['where_id']]
                }
         return info
 
@@ -280,7 +265,7 @@ class Nest():
         info = { 'Smoke_status': self._status['topaz'][device]['smoke_status'],
                  'Serial_number': str(self._status['topaz'][device]['serial_number']),
                  'Co_previous_peak': str(self._status['topaz'][device]['co_previous_peak']),
-                 'Where': where_map[self._status['topaz'][device]['spoken_where_id']],
+                 'Where': self.where_map[self._status['topaz'][device]['spoken_where_id']],
                  'Battery_low': str(self._status['topaz'][device]['battery_health_state']),
                  'Battery_level': str(self._status['topaz'][device]['battery_level'])
                }
