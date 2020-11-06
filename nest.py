@@ -1,12 +1,14 @@
-# Nest Class to access the Nest Thermostat and Protect through the Google Account.
+#!/usr/bin/env python3
+#
+# Nest Class to access the Nest thermostat and Protect through the Google account.
 #
 # Based on https://github.com/gboudreau/nest-api
 #
 # Author: Filip Demaertelaere
 # Extended by: Mark Ruys
 #
-# The values of issue_token and cookies are specific to your Google Account.
-# To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
+# The values of issue_token and cookies are specific to your Google account.
+# To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google account).
 #
 #     Open a Chrome browser tab in Incognito Mode (or clear your cache).
 #     Open Developer Tools (View/Developer/Developer Tools).

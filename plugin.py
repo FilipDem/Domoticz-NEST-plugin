@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Google Nest Python Plugin
 #
 # Author: Filip Demaertelaere
-# Extended by: Mark Ruys
+# Extended by Mark Ruys
 #
 # Nest Plugin that works with the Google Account.
 #
@@ -260,11 +260,10 @@ class BasePlugin:
             self.access_error_generated -= self.HEARTBEAT_SEC
 
         if self.runAgain <= 0:
-            if self.NestThread is None:
-                self.NestThread = threading.Thread(name="NestThread", target=BasePlugin.NestUpdate, args=(self,))
-            if self.NestThread.isAlive():
+            if self.NestThread is not None and self.NestThread.isAlive():
                 Domoticz.Error("NestThread still running")
             else:
+                self.NestThread = threading.Thread(name="NestThread", target=BasePlugin.NestUpdate, args=(self,))
                 self.NestThread.start()
 
             # Run again following the period in the settings
@@ -361,7 +360,7 @@ class BasePlugin:
             ))
             self.nest_update_status = _NEST_UPDATE_STATUS_NONE
 
-        Domoticz.Debug("Wait {} seconds for the next API calls".format(self.runAgain))
+        Domoticz.Debug("Wait {} seconds to update devices".format(self.runAgain))
 
 global _plugin
 _plugin = BasePlugin()
