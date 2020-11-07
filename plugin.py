@@ -215,9 +215,9 @@ class BasePlugin:
                 info = self.myNest.GetDeviceInformation(device)
                 Domoticz.Debug("> {} - {}".format(info['Where'], Devices[Unit].Name))
 
-                if DeviceNameIsUnit(info['Where'] + ' ' + _NEST_HEATING_TEMP, Unit):
+                if DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_HEATING_TEMP, Unit):
                     self.startNestPushThread(device, _NEST_HEATING_TEMP, Level, Unit)
-                elif DeviceNameIsUnit(info['Where'] + ' ' + _NEST_AWAY, Unit):
+                elif DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_AWAY, Unit):
                     if Command == 'On':
                         Level = True
                         UpdateDeviceByUnit(Unit, 1, 1, Images[_IMAGE_NEST_AWAY].ID)
@@ -225,7 +225,7 @@ class BasePlugin:
                         Level = False
                         UpdateDeviceByUnit(Unit, 0, 0, Images[_IMAGE_NEST_AWAY].ID)
                     self.startNestPushThread(device, _NEST_AWAY, Level, Unit)
-                elif DeviceNameIsUnit(info['Where'] + ' ' + _NEST_ECO_MODE, Unit):
+                elif DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_ECO_MODE, Unit):
                     if Command == 'On':
                         Level = 'manual-eco'
                         UpdateDeviceByUnit(Unit, 1, 1, Images[_IMAGE_NEST_ECO].ID)
@@ -233,7 +233,7 @@ class BasePlugin:
                         Level = 'schedule'
                         UpdateDeviceByUnit(Unit, 0, 0, Images[_IMAGE_NEST_ECO].ID)
                     self.startNestPushThread(device, _NEST_ECO_MODE, Level, Unit)
-                elif DeviceNameIsUnit(info['Where'] + ' ' + _NEST_HEATING, Unit):
+                elif DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_HEATING, Unit):
                     if Command == 'On':
                         Level = 'heat'
                         UpdateDeviceByUnit(Unit, 1, 1, Images[_IMAGE_NEST_HEATING].ID)
@@ -437,7 +437,7 @@ def CreateNewUnit():
     Domoticz.Debug("> Created unit {}".format(unit))
     return unit
 
-def DeviceNameIsUnit(device_name, Unit):
+def DeviceNameBelongsToUnit(device_name, Unit):
     needle = "[{}]".format(device_name)
     return needle in Devices[Unit].Description
 
@@ -446,7 +446,17 @@ def CreateDescription(tag):
 
 def FindUnitByNestName(device_name):
     for Unit in Devices:
-        if DeviceNameIsUnit(device_name, Unit):
+        if DeviceNameBelongsToUnit(device_name, Unit):
+            return Unit
+
+    # For backwards compatibility, scan for device names ending in device_name
+    for Unit in Devices:
+        Domoticz.Debug("Check {} ends with {}".format(Devices[Unit].Name, device_name))
+        if Devices[Unit].Name.endswith(device_name):
+            descriptions = [] if Devices[Unit].Description == "" else [ Devices[Unit].Description ]
+            descriptions += [ CreateDescription(device_name) ]
+            Devices[Unit].Update(Description="; ".join(descriptions), nValue=Devices[Unit].nValue, sValue=Devices[Unit].sValue)
+            Domoticz.Debug("Updated description to {}".format("; ".join(descriptions)))
             return Unit
     return None
 
