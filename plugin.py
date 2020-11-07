@@ -242,7 +242,7 @@ class BasePlugin:
                         UpdateDeviceByUnit(Unit, 0, 0, Images[_IMAGE_NEST_HEATING_OFF].ID)
                     self.startNestPushThread(device, _NEST_HEATING, Level, Unit)
 
-            Domoticz.Status("Processed {} to {} for unit {}".format(Command, Level, Unit))
+            Domoticz.Debug("Processed {} to {} for unit {}".format(Command, Level, Unit))
 
         except Exception as e:
             self._nest_access_error = "Unforseen exception occured in onCommand: {}".format(e)
@@ -355,7 +355,7 @@ class BasePlugin:
 
             if self.runAgain <= 0:
                 if self.NestThread is not None and self.NestThread.isAlive():
-                    Domoticz.Error("NestThread still running")
+                    Domoticz.Debug("NestThread still running")
                 else:
                     self.NestThread = threading.Thread(name="NestThread", target=BasePlugin.NestUpdate, args=(self,))
                     self.NestThread.start()
@@ -438,8 +438,8 @@ def CreateNewUnit():
     return unit
 
 def DeviceNameBelongsToUnit(device_name, Unit):
-    needle = "[{}]".format(device_name)
-    return needle in Devices[Unit].Description
+    needle = "[{}]".format(device_name).lower()
+    return needle in Devices[Unit].Description.lower()
 
 def CreateDescription(tag):
     return "Do not remove: [{}]".format(tag)
@@ -452,7 +452,7 @@ def FindUnitByNestName(device_name):
     # For backwards compatibility, scan for device names ending in device_name
     for Unit in Devices:
         Domoticz.Debug("Check {} ends with {}".format(Devices[Unit].Name, device_name))
-        if Devices[Unit].Name.endswith(device_name):
+        if Devices[Unit].Name.lower().endswith(device_name.lower()):
             descriptions = [] if Devices[Unit].Description == "" else [ Devices[Unit].Description ]
             descriptions += [ CreateDescription(device_name) ]
             Devices[Unit].Update(Description="; ".join(descriptions), nValue=Devices[Unit].nValue, sValue=Devices[Unit].sValue)
@@ -496,22 +496,3 @@ def TimeoutDevice(All, Unit=0):
             UpdateDevice(x, Devices[x].nValue, Devices[x].sValue, Devices[x].Image, TimedOut=_TIMEDOUT)
     else:
         UpdateDevice(Unit, Devices[Unit].nValue, Devices[Unit].sValue, Devices[Unit].Image, TimedOut=_TIMEDOUT)
-
-#CREATE ALL THE DEVICES (USED)
-def CreateDevicesUsed():
-    if _UNIT_DIMMER not in Devices:
-        name = "Cooling Fan"
-        description = CreateDescription(name)
-        Domoticz.Device(Name=name, Description=description, Unit=_UNIT_DIMMER, TypeName="Dimmer", Image=Images[_IMAGE].ID, Used=1).Create()
-
-#CREATE ALL THE DEVICES (NOT USED)
-def CreateDevicesNotUsed():
-    pass
-
-#GET CPU TEMPERATURE
-def getCPUtemperature():
-    try:
-        res = os.popen("cat /sys/class/thermal/thermal_zone0/temp").readline()
-    except:
-        res = "0"
-    return round(float(res)/1000,1)
