@@ -195,10 +195,10 @@ class Nest():
 
     def GetNestCredentials(self):
         #self._ReadCache()
-        current_time = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone())
-
-        if self._cache_expiration is not None and self._cache_expiration > current_time:
-            return True
+        current_time = datetime.now(pytz.utc).astimezone(tzlocal.get_localzone())
+        if self._cache_expiration is not None:
+            if self._cache_expiration > current_time:
+                return True
 
         if not self._GetBearerTokenUsingGoogleCookiesIssue_token():
             return False
@@ -208,12 +208,12 @@ class Nest():
             return False
 
         try:
-            string_date = self._cache_expiration_text + current_time.strftime("%z")
-            format = '%Y-%m-%dT%H:%M:%S.%fZ%z'
-            self._cache_expiration = datetime.strptime(string_date, format)
+            format = '%Y-%m-%dT%H:%M:%S.%fZ'
+            naive = datetime.strptime(self._cache_expiration_text, format)
         except TypeError:
             # https://stackoverflow.com/questions/40392842/typeerror-in-strptime-in-python-3-4
-            self._cache_expiration = datetime(*(time.strptime(string_date, format)[0:6]))
+            naive = datetime.fromtimestamp(time.mktime(time.strptime(self._cache_expiration_text, format)))
+        self._cache_expiration = pytz.utc.localize(naive)
 
         #self._WriteCache()
         return True
