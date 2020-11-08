@@ -62,9 +62,6 @@ import threading
 import time
 import json
 
-#DEVICES TO CREATE
-_UNIT_DIMMER = 1
-
 #DEFAULT IMAGE
 _IMAGE_NEST_HEATING = "GoogleNest Nest Heating"
 _IMAGE_NEST_HEATING_OFF = "GoogleNest Nest Heating Off"
