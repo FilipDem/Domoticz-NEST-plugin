@@ -358,12 +358,12 @@ class BasePlugin:
                     self.NestThread.start()
 
                 # Run again following the period in the settings
-                self.runAgain = int(Parameters["Mode5"]) * 60
+                self.runAgain = float(Parameters["Mode5"].replace(',','.')) * 60
 
             elif self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated <= 0:
                 updated_units = self.updateThermostats() + self.updateProtects()
 
-                Domoticz.Status("Updated {} units for {} device(s)".format(
+                Domoticz.Debug("Updated {} units for {} device(s)".format(
                     updated_units,
                     len(self.myNest.device_list) + len(self.myNest.protect_list)
                 ))
