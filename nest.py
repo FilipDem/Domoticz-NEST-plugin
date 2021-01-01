@@ -240,11 +240,11 @@ class Nest():
             return False
 
         self._status = request.json()
+        log(json.dumps(self._status))
 
 #                 for key in self._status:
 #                 for key in ['user', 'structure']:
 #                     log("{}: {}".format(key, json.dumps(self._status[key])))
-#                 log(json.dumps(self._status))
 
         #Thermostats
         try:
@@ -397,3 +397,4 @@ if __name__ == "__main__":
         for device in thermostat.protect_list:
             log(thermostat.GetProtectInformation(device))
     log(thermostat.GetAccessError())
+    
