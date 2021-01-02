@@ -32,7 +32,13 @@ import tzlocal
 try:
     import Domoticz
     def log(msg=""):
-        Domoticz.Debug(">> {}".format(msg))
+        if len(msg) <= 5000:
+            Domoticz.Debug(">> {}".format(msg))
+        else:
+            Domoticz.Debug(">> (in several blocks)")
+            string = [msg[i:i+5000] for i in range(0, len(msg), 5000)]
+            for k in string:
+                Domoticz.Debug(">> {}".format(k))
 except:
     def log(msg=""):
         print(msg)
@@ -152,7 +158,7 @@ class Nest():
         self._nest_user_id = result['claims']['subject']['nestId']['id']
         self._nest_access_token = result['jwt']
         self._cache_expiration_text = result['claims']['expirationTime']
-        log("Got access token and user id")
+        log("Got access token and user id ({})".format(self._nest_user_id))
         return True
 
     def _GetUser(self):
@@ -397,4 +403,3 @@ if __name__ == "__main__":
         for device in thermostat.protect_list:
             log(thermostat.GetProtectInformation(device))
     log(thermostat.GetAccessError())
-    
