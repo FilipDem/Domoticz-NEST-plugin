@@ -47,6 +47,8 @@ class Nest():
 
     USER_AGENT = 'Domoticz Nest/1.0'
     REQUEST_TIMEOUT = 10.0
+    GETSTATUSUSERBUCKETS = 'getStatusUserBuckets'
+    GETSTATUSMOBILEUSER = 'getStatusMobileUser'
 
     def __init__(self, issue_token, cookie):
         self._issue_token = issue_token
@@ -63,10 +65,10 @@ class Nest():
         self._status = None
         self._running = True
         self._nest_access_error = None
+        self._mode = self.GETSTATUSUSERBUCKETS
         #self._ReadCache()
         self.device_list = []
         self.protect_list = []
-        self.where_map = {}
 
     def terminate(self):
         self._running = False
@@ -224,11 +226,8 @@ class Nest():
         #self._WriteCache()
         return True
 
-    def GetDevicesAndStatus(self):
-        if not self._running:
-            return False
-
-        url = self._transport_url + '/v3/mobile/' + self._user
+    def GetStatusMobileUser(self):
+        url = self._transport_url + '/v7/mobile/' + self._user
         headers = {
             'X-nl-protocol-version': '1',
             'X-nl-user-id': self._nest_user_id,
@@ -246,96 +245,170 @@ class Nest():
             return False
 
         self._status = request.json()
-        log(json.dumps(self._status))
-
-#                 for key in self._status:
-#                 for key in ['user', 'structure']:
-#                     log("{}: {}".format(key, json.dumps(self._status[key])))
+        log('Status: {}'.format(json.dumps(self._status, indent=2)))
 
         #Thermostats
         try:
-            self.where_map = {}
-            self.device_list = []
             for structure in self._status['user'][self._nest_user_id]['structures']:
                 structure_id = structure[10:]
-                self.where_map.update({
-                    where['where_id'] : where['name']
-                    for where in self._status['where'][structure_id]['wheres']
-                })
                 self.device_list += [ device[7:] for device in self._status['structure'][structure_id]['devices'] ]
         except:
             pass
-
+            
         #Protects
         if 'topaz' in self._status:
             self.protect_list = [ str(protect) for protect in self._status['topaz'] ]
-
-        log("Got devices and status")
+    
         return True
+        
+    def GetStatusUserBuckets(self):
+        # Thermostats: "device", "shared",
+        # Protect: "topaz"
+        # Temperature sensors: "kryptonite"
 
-    def GetDeviceInformation(self, device):
-        structure = self._status['link'][device]['structure'][10:]
-        info = {
-            'Name': str(self._status['structure'][structure]['name']),
-            'Away': self._status['structure'][structure]['away'],
-            'Target_temperature': self._status['shared'][device]['target_temperature'],
-            'Current_temperature': self._status['shared'][device]['current_temperature'],
-            'Temperature_scale':  self._status['device'][device]['temperature_scale'],
-            'Humidity': self._status['device'][device]['current_humidity'],
-            'Eco': self._status['device'][device]['eco']['mode'] != 'schedule', #if not 'schedule' --> in eco-mode
-            'Heating': self._status['shared'][device]['hvac_heater_state'],
-            'Target_mode': self._status['shared'][device]['target_temperature_type'],
-            'Target_temperature_low': self._status['shared'][device]['target_temperature_low'],
-            'Target_temperature_high': self._status['shared'][device]['target_temperature_high'],
-            'Where': self.where_map[self._status['device'][device]['where_id']],
+        url = 'https://home.nest.com/api/0.1/user/' + self._nest_user_id + '/app_launch'
+        data = {
+            #'known_bucket_types': [ 'buckets', 'delayed_topaz', 'demand_response', 'device', 'device_alert_dialog', 'geofence_info', 'kryptonite', 'link', 'message', 'message_center', 'metadata', 'occupancy', 'quartz', 'safety', 'rcs_settings', 'safety_summary', 'schedule', 'shared', 'structure', 'structure_history', 'structure_metadata', 'topaz', 'topaz_resource', 'track', 'trip', 'tuneups', 'user', 'user_alert_dialog', 'user_settings', 'where', 'widget_track' ],
+            'known_bucket_types': [ 'buckets', 'device', 'kryptonite', 'link', 'quartz', 'rcs_settings', 'shared', 'structure', 'topaz', 'user', 'where' ],
+            'known_bucket_versions': [],
         }
+        request = self.PostMessageWithRetries(url, data, retries=2)
+        if request is None:
+            return False
+
+        self._status = request.json()
+        log('Status: {}'.format(json.dumps(self._status, indent=2)))
+
+        try:
+            #Thermostats
+            self.device_list = [bucket['value']['devices'] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'structure']
+            self.device_list = [device[7:] for device_list in self.device_list for device in device_list]
+
+            #Protects
+            self.protect_list = [bucket['object_key'].split('.')[1] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'topaz']
+        except:
+            pass
+            
+        return True
+            
+    def GetDevicesAndStatus(self):
+        if not self._running:
+            return False
+
+        self.device_list = []
+        self.protect_list = []
+
+        if self._mode == self.GETSTATUSMOBILEUSER: 
+             status = self.GetStatusMobileUser()
+
+
+        elif self._mode == self.GETSTATUSUSERBUCKETS:
+            status = self.GetStatusUserBuckets()
+        
+        log("Got nest devices {}: thermostats {} - protects {}".format(len(self.device_list)+len(self.protect_list),self.device_list, self.protect_list))
+        
+        return status
+
+    def GetDeviceInformation(self, device_id):
+        info = {}
+        try:
+            if self._mode == self.GETSTATUSMOBILEUSER: 
+                structure_id = self._status['link'][device_id]['structure'][10:]
+                structure = self._status['structure'][structure_id]
+                device = self._status['device'][device_id]
+                shared = self._status['shared'][device_id]
+                wheres = {where['where_id'] : where['name'] for where in self._status['where'][structure_id]['wheres']}
+            elif self._mode == self.GETSTATUSUSERBUCKETS:
+                structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
+                shared = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'shared.{}'.format(device_id)][0]
+                device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'device.{}'.format(device_id)][0]
+                structure = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'structure.{}'.format(structure_id)][0]
+                wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
+
+            info = {
+                'Name': str(structure['name']),
+                'Away': structure['away'],
+                'Target_temperature': shared['target_temperature'],
+                'Current_temperature': shared['current_temperature'],
+                'Temperature_scale':  device['temperature_scale'],
+                'Humidity': device['current_humidity'],
+                'Eco': device['eco']['mode'] != 'schedule', #if not 'schedule' --> in eco-mode
+                'Heating': shared['hvac_heater_state'],
+                'Target_mode': shared['target_temperature_type'],
+                'Target_temperature_low': shared['target_temperature_low'],
+                'Target_temperature_high': shared['target_temperature_high'],
+                'Where': wheres[device['where_id']],
+            }
+        except:
+            pass
+            
         return info
 
-    def GetProtectInformation(self, device):
-        #log(self._status['topaz'][device])
-        info = {
-            'Smoke_status': self._status['topaz'][device]['smoke_status'],
-            'Serial_number': str(self._status['topaz'][device]['serial_number']),
-            'Co_previous_peak': str(self._status['topaz'][device]['co_previous_peak']),
-            'Where': self.where_map[self._status['topaz'][device]['spoken_where_id']],
-            'Battery_low': str(self._status['topaz'][device]['battery_health_state']),
-            'Battery_level': str(self._status['topaz'][device]['battery_level']),
-        }
+    def GetProtectInformation(self, device_id):
+        info = {}
+        try:
+            if self._mode == self.GETSTATUSMOBILEUSER:
+                structure_id = [structure for structure in self._status['structure'].keys() if 'topaz.{}'.format(device_id) in self._status['structure'][structure]['swarm']][0]
+                device = self._status['topaz'][device_id]
+                wheres = {where['where_id'] : where['name'] for where in self._status['where'][structure_id]['wheres']}
+            elif self._mode == self.GETSTATUSUSERBUCKETS:
+                device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'topaz.{}'.format(device_id)][0]
+                structure_id = [bucket['object_key'][10:] for bucket in self._status['updated_buckets'] if (bucket['object_key'].split('.')[0] == 'structure' and 'topaz.{}'.format(device_id) in bucket['value']['swarm'])][0]
+                wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
+                
+            info = {
+                'Smoke_status': device['smoke_status'],
+                'Serial_number': str(device['serial_number']),
+                'Co_previous_peak': str(device['co_previous_peak']),
+                'Where': wheres[device['spoken_where_id']],
+                'Battery_low': str(device['battery_health_state']),
+                'Battery_level': str(device['battery_level']),
+            }
+        except:
+            pass
+            
         return info
 
-    def SetThermostat(self, device, mode): #False = set thermostat off
-        url = self._transport_url + '/v2/put/shared.' + device
+    def SetThermostat(self, device_id, mode): #False = set thermostat off
+        url = self._transport_url + '/v2/put/shared.' + device_id
         data = {
             'target_change_pending': True,
             'target_temperature_type': mode,
         }
-        return self.UpdateNest(url, data, "Thermostat set")
+        return self.UpdateNest(url, data, "Thermostat set to {}".format(mode))
 
-    def SetTemperature(self, device, target_temperature):
-        url = self._transport_url + '/v2/put/shared.' + device
+    def SetTemperature(self, device_id, target_temperature):
+        url = self._transport_url + '/v2/put/shared.' + device_id
         data = {
             'target_change_pending': True,
             'target_temperature': target_temperature,
         }
-        return self.UpdateNest(url, data, "Temperature set")
+        return self.UpdateNest(url, data, "Temperature set to {}".format(target_temperature))
 
-    def SetAway(self, device, is_away, eco_when_away=True):
-        url = self._transport_url + '/v2/put/structure.' + self._status['link'][device]['structure'][10:]
+    def SetAway(self, device_id, is_away, eco_when_away=True):
+        try:
+            if self._mode == self.GETSTATUSMOBILEUSER: 
+                structure_id = self._status['link'][device_id]['structure'][10:]
+            elif self._mode == self.GETSTATUSUSERBUCKETS:
+                structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
+        except:
+            pass
+        url = self._transport_url + '/v2/put/structure.' + structure_id
         away_timestamp = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()
         data = {
             'away': is_away,
             'away_timestamp': round(away_timestamp),
             'away_setter': 0,
         }
-        if self.UpdateNest(url, data, "Away set"):
+        if self.UpdateNest(url, data, "Away set to {}".format(is_away)):
             if is_away and eco_when_away:
                 self.SetEco(device, 'manual-eco')
             return True
         else:
             return False
 
-    def SetEco(self, device, mode): # mode equals 'manual-eco' or 'schedule'
-        url = self._transport_url + '/v2/put/device.' + device
+    def SetEco(self, device_id, mode): # mode equals 'manual-eco' or 'schedule'
+        url = self._transport_url + '/v2/put/device.' + device_id
         mode_update_timestamp = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()
         data = {
             'eco': {
@@ -344,7 +417,7 @@ class Nest():
                 'touched_by': 4,
             }
         }
-        return self.UpdateNest(url, data, "Eco set")
+        return self.UpdateNest(url, data, "Eco set to mode {}".format(mode))
 
     def UpdateNest(self, url, data, success_msg, retries=2):
         request = self.PostMessageWithRetries(url=url, data=data)
@@ -361,6 +434,7 @@ class Nest():
                 'Authorization': 'Basic ' + self._nest_access_token,
                 'Content-type': 'text/json',
                 'User-Agent': self.USER_AGENT,
+                'Referer': 'https://home.nest.com'
             }
 
         for i in range(retries):
@@ -389,17 +463,17 @@ if __name__ == "__main__":
     issue_token = os.environ.get('NEST_ISSUE_TOKEN')
     cookie = os.environ.get('NEST_COOKIE')
     if issue_token is None or cookie is None:
-        log("Please set environment variables NEST_ISSUE_TOKEN and NEST_ISSUE_TOKEN")
+        log("Please set environment variables NEST_ISSUE_TOKEN and NEST_COOKIE")
         exit(1)
     thermostat = Nest(issue_token, cookie)
     if thermostat.UpdateDevices():
         for device in thermostat.device_list:
             info = thermostat.GetDeviceInformation(device)
             log(info)
-            #log(thermostat.SetTemperature(device, float(info['Target_temperature'])))
-            #log(thermostat.SetAway(device, info['Away']))
-            #log(thermostat.SetEco(device, 'manual-eco'))
-            #log(thermostat.SetThermostat(device, 'off'))
+            log(thermostat.SetTemperature(device, float(info['Target_temperature'])))
+            log(thermostat.SetAway(device, info['Away']))
+            log(thermostat.SetEco(device, 'manual-eco'))
+            log(thermostat.SetThermostat(device, 'heat'))
         for device in thermostat.protect_list:
             log(thermostat.GetProtectInformation(device))
     log(thermostat.GetAccessError())
