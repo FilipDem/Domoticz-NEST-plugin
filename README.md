@@ -6,7 +6,7 @@ It took me quite some effort to get the plugin available. Small contributions ar
 # Domoticz-NEST-plugin
 Nest plugin for Domoticz using the Google account credentials.
 
-This is a workaround solution for Nest thermostats and Nest Protect devices in Domoticz. It does not use any official API because of non-existance. Nest/Google announced them only to be available by end of 2020.
+This is a workaround solution for Nest thermostats and Nest Protect devices in Domoticz. It does not use any official API because of non-existance. Nest/Google announced them only to be available by end of 2020. Nest Thermostat E (UK/EU version) is not supported.
 
 The plugin creates the following devices: Away, Eco-mode, Heating, Temperature/Humidity, Heating temperature, and Nest Protect.
 
