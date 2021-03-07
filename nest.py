@@ -360,7 +360,7 @@ class Nest():
                 'Smoke_status': device['smoke_status'],
                 'Serial_number': str(device['serial_number']),
                 'Co_previous_peak': str(device['co_previous_peak']),
-                'Where': wheres[device['spoken_where_id']],
+                'Where': wheres[device['spoken_where_id']] if 'spoken_where_id' in device else wheres[device['where_id']],
                 'Battery_low': str(device['battery_health_state']),
                 'Battery_level': str(device['battery_level']),
             }
