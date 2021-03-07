@@ -265,7 +265,7 @@ class BasePlugin:
                 unit = CreateNewUnit()
                 description = CreateDescription(device_name)
                 Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=244, Subtype=73, Switchtype=5, Image=Images[_IMAGE_NEST_PROTECT].ID, Used=1).Create()
-            if info['Smoke_status']:
+            if info['Smoke_status'] or info['Co_status'] or info['Heat_status']:
                 UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
             else:
                 UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
