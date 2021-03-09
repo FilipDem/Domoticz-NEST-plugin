@@ -47,8 +47,6 @@ class Nest():
 
     USER_AGENT = 'Domoticz Nest/1.0'
     REQUEST_TIMEOUT = 10.0
-    GETSTATUSUSERBUCKETS = 'getStatusUserBuckets'
-    GETSTATUSMOBILEUSER = 'getStatusMobileUser'
 
     def __init__(self, issue_token, cookie):
         self._issue_token = issue_token
@@ -65,7 +63,6 @@ class Nest():
         self._status = None
         self._running = True
         self._nest_access_error = None
-        self._mode = self.GETSTATUSUSERBUCKETS
         #self._ReadCache()
         self.device_list = []
         self.protect_list = []
@@ -225,43 +222,9 @@ class Nest():
 
         #self._WriteCache()
         return True
-
-    def GetStatusMobileUser(self):
-        url = self._transport_url + '/v7/mobile/' + self._user
-        headers = {
-            'X-nl-protocol-version': '1',
-            'X-nl-user-id': self._nest_user_id,
-            'Authorization': 'Basic ' + self._nest_access_token,
-            'User-Agent': self.USER_AGENT,
-        }
-        try:
-            request = requests.get(url, headers=headers, timeout=self.REQUEST_TIMEOUT)
-        except requests.exceptions.Timeout as e:
-            self._nest_access_error = 'Connection timeout'
-            return False
-
-        if request.status_code != 200:
-            self._nest_access_error = 'Error getting device information (http status {})'.format(request.status_code)
-            return False
-
-        self._status = request.json()
-        log('Status: {}'.format(json.dumps(self._status, indent=2)))
-
-        #Thermostats
-        try:
-            for structure in self._status['user'][self._nest_user_id]['structures']:
-                structure_id = structure[10:]
-                self.device_list += [ device[7:] for device in self._status['structure'][structure_id]['devices'] ]
-        except:
-            pass
-            
-        #Protects
-        if 'topaz' in self._status:
-            self.protect_list = [ str(protect) for protect in self._status['topaz'] ]
-    
-        return True
         
     def GetStatusUserBuckets(self):
+        # General Nest information: "structure"
         # Thermostats: "device", "shared",
         # Protect: "topaz"
         # Temperature sensors: "kryptonite"
@@ -269,7 +232,7 @@ class Nest():
         url = 'https://home.nest.com/api/0.1/user/' + self._nest_user_id + '/app_launch'
         data = {
             #'known_bucket_types': [ 'buckets', 'delayed_topaz', 'demand_response', 'device', 'device_alert_dialog', 'geofence_info', 'kryptonite', 'link', 'message', 'message_center', 'metadata', 'occupancy', 'quartz', 'safety', 'rcs_settings', 'safety_summary', 'schedule', 'shared', 'structure', 'structure_history', 'structure_metadata', 'topaz', 'topaz_resource', 'track', 'trip', 'tuneups', 'user', 'user_alert_dialog', 'user_settings', 'where', 'widget_track' ],
-            'known_bucket_types': [ 'buckets', 'device', 'kryptonite', 'link', 'quartz', 'rcs_settings', 'shared', 'structure', 'topaz', 'user', 'where' ],
+            'known_bucket_types': [ 'buckets', 'device', 'kryptonite', 'link', 'quartz', 'rcs_settings', 'shared', 'structure', 'topaz', 'user', 'where'],
             'known_bucket_versions': [],
         }
         request = self.PostMessageWithRetries(url, data, retries=2)
@@ -277,15 +240,17 @@ class Nest():
             return False
 
         self._status = request.json()
+        #with open('Nest_dump.txt') as json_file:
+        #    self._status = json.load(json_file)        
+
         log('Status: {}'.format(json.dumps(self._status, indent=2)))
 
         try:
+            devices = [bucket['value']['swarm'] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'structure'][0]
             #Thermostats
-            self.device_list = [bucket['value']['devices'] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'structure']
-            self.device_list = [device[7:] for device_list in self.device_list for device in device_list]
-
+            self.device_list = [device.split('.')[1] for device in devices if device.split('.')[0] == 'device']
             #Protects
-            self.protect_list = [bucket['object_key'].split('.')[1] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'topaz']
+            self.protect_list = [device.split('.')[1] for device in devices if device.split('.')[0] == 'topaz']
         except:
             pass
             
@@ -294,40 +259,21 @@ class Nest():
     def GetDevicesAndStatus(self):
         if not self._running:
             return False
-
         self.device_list = []
         self.protect_list = []
-
-        if self._mode == self.GETSTATUSMOBILEUSER: 
-             status = self.GetStatusMobileUser()
-
-
-        elif self._mode == self.GETSTATUSUSERBUCKETS:
-            status = self.GetStatusUserBuckets()
-        
+        status = self.GetStatusUserBuckets()
         log("Got nest devices {}: thermostats {} - protects {}".format(len(self.device_list)+len(self.protect_list),self.device_list, self.protect_list))
-        
         return status
 
     def GetDeviceInformation(self, device_id):
         info = {}
         try:
-            if self._mode == self.GETSTATUSMOBILEUSER: 
-                structure_id = self._status['link'][device_id]['structure'][10:]
-                structure = self._status['structure'][structure_id]
-                device = self._status['device'][device_id]
-                shared = self._status['shared'][device_id]
-                wheres = {where['where_id'] : where['name'] for where in self._status['where'][structure_id]['wheres']}
-            elif self._mode == self.GETSTATUSUSERBUCKETS:
-                structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
-                shared = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'shared.{}'.format(device_id)][0]
-                device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'device.{}'.format(device_id)][0]
-                structure = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'structure.{}'.format(structure_id)][0]
-                wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
+            structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
+            shared = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'shared.{}'.format(device_id)][0]
+            device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'device.{}'.format(device_id)][0]
+            wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
 
             info = {
-                'Name': str(structure['name']),
-                'Away': structure['away'],
                 'Target_temperature': shared['target_temperature'],
                 'Current_temperature': shared['current_temperature'],
                 'Temperature_scale':  device['temperature_scale'],
@@ -347,22 +293,33 @@ class Nest():
     def GetProtectInformation(self, device_id):
         info = {}
         try:
-            if self._mode == self.GETSTATUSMOBILEUSER:
-                structure_id = [structure for structure in self._status['structure'].keys() if 'topaz.{}'.format(device_id) in self._status['structure'][structure]['swarm']][0]
-                device = self._status['topaz'][device_id]
-                wheres = {where['where_id'] : where['name'] for where in self._status['where'][structure_id]['wheres']}
-            elif self._mode == self.GETSTATUSUSERBUCKETS:
-                device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'topaz.{}'.format(device_id)][0]
-                structure_id = [bucket['object_key'][10:] for bucket in self._status['updated_buckets'] if (bucket['object_key'].split('.')[0] == 'structure' and 'topaz.{}'.format(device_id) in bucket['value']['swarm'])][0]
-                wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
-                
+            device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'topaz.{}'.format(device_id)][0]
+            structure_id = [bucket['object_key'][10:] for bucket in self._status['updated_buckets'] if (bucket['object_key'].split('.')[0] == 'structure' and 'topaz.{}'.format(device_id) in bucket['value']['swarm'])][0]
+            wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
+        
             info = {
                 'Smoke_status': device['smoke_status'],
+                'Co_status': device['co_status'],
+                'Heat_status': device['heat_status'],
                 'Serial_number': str(device['serial_number']),
                 'Co_previous_peak': str(device['co_previous_peak']),
                 'Where': wheres[device['spoken_where_id']] if 'spoken_where_id' in device else wheres[device['where_id']],
                 'Battery_low': str(device['battery_health_state']),
-                'Battery_level': str(device['battery_level']),
+                'Battery_level': str(device['battery_level'])
+            }
+        except:
+            pass
+            
+        return info
+
+    def GetNestInformation(self):
+        info = {}
+        try:
+            structure = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'structure'][0]
+
+            info = {
+                'Name': str(structure['name']),
+                'Away': structure['away']
             }
         except:
             pass
@@ -387,10 +344,7 @@ class Nest():
 
     def SetAway(self, device_id, is_away, eco_when_away=True):
         try:
-            if self._mode == self.GETSTATUSMOBILEUSER: 
-                structure_id = self._status['link'][device_id]['structure'][10:]
-            elif self._mode == self.GETSTATUSUSERBUCKETS:
-                structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
+            structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
         except:
             pass
         url = self._transport_url + '/v2/put/structure.' + structure_id
@@ -467,13 +421,16 @@ if __name__ == "__main__":
         exit(1)
     thermostat = Nest(issue_token, cookie)
     if thermostat.UpdateDevices():
+        infoNest = thermostat.GetNestInformation()
+        log("General Nest information: {}".format(infoNest))
         for device in thermostat.device_list:
             info = thermostat.GetDeviceInformation(device)
-            log(info)
-            log(thermostat.SetTemperature(device, float(info['Target_temperature'])))
-            log(thermostat.SetAway(device, info['Away']))
-            log(thermostat.SetEco(device, 'manual-eco'))
-            log(thermostat.SetThermostat(device, 'heat'))
+            log("Nest Thermostat {}: {}".format(device, info))
+            log("    Set Temperature: {}".format(thermostat.SetTemperature(device, float(info['Target_temperature']))))
+            log("    Set Away: {}".format(thermostat.SetAway(device, infoNest['Away'])))
+            log("    Set Ecomode: {}".format(thermostat.SetEco(device, 'manual-eco')))
+            log("    Set Thermostat heating: {}".format(thermostat.SetThermostat(device, 'heat')))
         for device in thermostat.protect_list:
-            log(thermostat.GetProtectInformation(device))
+            info = thermostat.GetProtectInformation(device)
+            log("Nest Protect {}: {}".format(device, info))
     log(thermostat.GetAccessError())
