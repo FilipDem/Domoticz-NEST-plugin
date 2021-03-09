@@ -8,7 +8,7 @@ Nest plugin for Domoticz using the Google account credentials.
 
 This is a workaround solution for Nest thermostats and Nest Protect devices in Domoticz. It does not use any official API because of non-existance. Nest/Google announced them only to be available by end of 2020. Nest Thermostat E (UK/EU version) is not supported.
 
-The plugin creates the following devices: Away, Eco-mode, Heating, Temperature/Humidity, Heating temperature, and Nest Protect.
+The plugin creates the following devices: Away, Eco-mode, Heating, Temperature/Humidity, Heating temperature, and Nest Protect. From now on, the "Away"-device is not linked to the Thermostat devices. In the scenario with only Nest Protect devices, the "Away"-device will anyway be created and give the away-status. Read also the chapter "Migration".
 
 ## Installation (linux)
 Follow this procedure to install the plugin.
@@ -53,21 +53,29 @@ python3 nest.py
 ## Device creation
 After the start of the plugin the devices will be automatically created for: 
 
+* Away (on/off)
 * Heating (on/off)
 * Eco mode (on/off)
-* Away (on/off)
 * Temp/hum (temperature and humidity)
 * Heating Temp (thermostat temperature)
 * Protect (on/off)
 
-The names of the devices are created automatically based on the location settings of your Nest with: *name_of_the_hardware* - *location type_of_switch*.
+The names of the devices are created automatically based on the location settings of your Nest devices with *name_of_the_hardware* - *location type_of_switch*, except for the "Away"-device.
 
    * name_of_the_hardware: name as entered in the Setup - Hardware screen
    * location: as set up in the nest account, some possible values 'Entryway', 'Kitchen', 'Living Room', ...
-   * type_of_switch: 'Heating', 'Eco mode', 'Away', 'Temp/Hum', 'Heating Temp', 'Protect'
-The names cannot be changed, except the name of the hardware.
+   * type_of_switch: 'Heating', 'Eco mode', 'Temp/Hum', 'Heating Temp', 'Protect'
 
-For each created device a remark is added to the description, like '**Do not remove**: [Family Room Heating]'. The part in square brackets (inclusive) is needed to make this plugin work.
+As the away status is independent of the devices (and is in fact a combination of all the devices), the name is automatically created as *name_of_the_hardware* - *Away*.
+
+For each created device a remark is added to the description, like '**Do not remove**: [Family Room Heating]'. The part in square brackets (inclusive) is needed to make this plugin work. It allows you changing the name of devices (but do not change the tag in the description).
+
+## Migration
+Check the description of the "Away"-device by Switches - Edit.
+
+If the description still contains the location, remove the location part. As an example, '**Do not remove**: [Family Room Away]' should be modified to '**Do not remove**: [Away]'. 
+
+Alternatively (if not done), a new "Away'-device will be created automatically (and you can remove the old one).
 
 Success!
 
