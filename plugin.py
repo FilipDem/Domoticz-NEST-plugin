@@ -265,7 +265,7 @@ class BasePlugin:
                 unit = CreateNewUnit()
                 description = CreateDescription(device_name)
                 Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=244, Subtype=73, Switchtype=5, Image=Images[_IMAGE_NEST_PROTECT].ID, Used=1).Create()
-            if info['Smoke_status'] or info['Co_status'] or info['Heat_status']:
+            if info['Smoke_status'] or info['Co_status'] or info['Heat_status'] :
                 UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
             else:
                 UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_PROTECT].ID, BatteryLevel=int(int(info['Battery_level'])/100))
@@ -293,19 +293,6 @@ class BasePlugin:
                     UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_HEATING_OFF].ID)
                 else:
                     UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_HEATING].ID)
-            updated_units += 1
-
-            #Update NEST AWAY and create device if required
-            device_name = info['Where'] + ' ' + _NEST_AWAY
-            unit = FindUnitByNestName(device_name)
-            if not unit:
-                unit = CreateNewUnit()
-                description = CreateDescription(device_name)
-                Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_AWAY].ID, Used=1).Create()
-            if info['Away']:
-                UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_AWAY].ID)
-            else:
-                UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_AWAY].ID)
             updated_units += 1
 
             #Update NEST ECO MODE and create device if required
@@ -342,6 +329,25 @@ class BasePlugin:
             updated_units += 1
         return updated_units
 
+    def updateNestInfo(self):
+        updated_units = 0
+        info = self.myNest.GetNestInformation()
+        Domoticz.Debug("> {}".format(json.dumps(info)))
+
+        #Update NEST AWAY and create device if required
+        device_name = _NEST_AWAY
+        unit = FindUnitByNestName(device_name)
+        if not unit:
+            unit = CreateNewUnit()
+            description = CreateDescription(device_name)
+            Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_AWAY].ID, Used=1).Create()
+        if info['Away']:
+            UpdateDeviceByUnit(unit, 1, 1, Images[_IMAGE_NEST_AWAY].ID)
+        else:
+            UpdateDeviceByUnit(unit, 0, 0, Images[_IMAGE_NEST_AWAY].ID)
+        updated_units += 1
+        return updated_units
+
     def onHeartbeat(self):
         try:
             self.runAgain -= self.HEARTBEAT_SEC
@@ -361,7 +367,7 @@ class BasePlugin:
                 self.runAgain = float(Parameters["Mode5"].replace(',','.')) * 60
 
             elif self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated <= 0:
-                updated_units = self.updateThermostats() + self.updateProtects()
+                updated_units = self.updateThermostats() + self.updateProtects() + self.updateNestInfo()
 
                 Domoticz.Debug("Updated {} units for {} device(s)".format(
                     updated_units,
