@@ -105,6 +105,7 @@ class BasePlugin:
         self.NestPushThread = None
         self.access_error_generated = 0
         self.runAgain = 0
+        self.round_temperature = 0
         return
 
     def NestUpdate(self):
@@ -155,6 +156,15 @@ class BasePlugin:
         # Show plugin configuration in log
         if self.debug == _DEBUG_ON:
             DumpConfigToLog()
+
+        # Read technical parameters
+        try:
+            with open("./plugins/GoogleNest/GoogleNest.json") as json_file:
+                config = json.load(json_file)
+                if 'RoundTemperature' in config:
+                    self.round_temperature = config['RoundTemperature']
+        except:
+            pass
 
         # Create images if necessary
         if _IMAGE_NEST_AWAY not in Images:
@@ -315,7 +325,11 @@ class BasePlugin:
                 unit = CreateNewUnit()
                 description = CreateDescription(device_name)
                 Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=82, Subtype=5, Switchtype=0, Used=1).Create()
-            UpdateDeviceByUnit(unit, info['Current_temperature'], '%.1f;%.0f;0'%(info['Current_temperature'], info['Humidity']))
+            if self.round_temperature:
+                temperature = round(info['Current_temperature'] * 2) / 2
+            else:
+                temperature = info['Current_temperature']
+            UpdateDeviceByUnit(unit, temperature, '%.1f;%.0f;0'%(temperature, info['Humidity']))
             updated_units += 1
 
             #Update NEST HEATING TEMPERATURE and create device if required
