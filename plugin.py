@@ -104,6 +104,7 @@ class BasePlugin:
         self.NestThread = None
         self.NestPushThread = None
         self.access_error_generated = 0
+        self.buffer_command_list = []
         self.runAgain = 0
         self.round_temperature = 0
         return
@@ -159,12 +160,13 @@ class BasePlugin:
 
         # Read technical parameters
         try:
+            config = None
             with open("./plugins/GoogleNest/GoogleNest.json") as json_file:
                 config = json.load(json_file)
-                if 'RoundTemperature' in config:
-                    self.round_temperature = config['RoundTemperature']
         except:
             pass
+        if 'RoundTemperature' in config:
+            self.round_temperature = config['RoundTemperature']
 
         # Create images if necessary
         if _IMAGE_NEST_AWAY not in Images:
@@ -207,7 +209,11 @@ class BasePlugin:
 
     def startNestPushThread(self, device, field, Level, Unit):
         if self.NestPushThread is not None and self.NestPushThread.isAlive():
-            Domoticz.Error("NestPushThread still running, command ignored")
+            if self.nest_update_status != _NEST_UPDATE_STATUS_NONE:
+                self.buffer_command_list.append((device, field, Level, Unit))
+                Domoticz.Debug("NestThread still running; command is buffered")
+            else:
+                Domoticz.Error("NestPushThread still running, command ignored")
         else:
             self.NestPushThread = threading.Thread(
                 name="NestPushThread",
@@ -369,6 +375,17 @@ class BasePlugin:
             # In case the API fails, generate en error every 12 hours
             if self.access_error_generated > 0:
                 self.access_error_generated -= self.HEARTBEAT_SEC
+
+            # Check pending commands and execute if it is the case
+            if self.buffer_command_list:
+                if self.NestThread is not None and self.NestThread.isAlive():
+                    Domoticz.Debug("NestThread still running")
+                else:
+                    if self.nest_update_status == _NEST_UPDATE_STATUS_NONE:
+                        Domoticz.Debug("> Start buffered command {} for device {}.".format(self.buffer_command_list[0][1], self.buffer_command_list[0][0]))
+                        self.startNestPushThread(*self.buffer_command_list[0])
+                        self.buffer_command_list.pop(0)
+                        return
 
             if self.runAgain <= 0:
                 if self.NestThread is not None and self.NestThread.isAlive():
