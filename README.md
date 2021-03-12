@@ -1,7 +1,14 @@
 # Donation
 It took me quite some effort to get the plugin available. Small contributions are welcome...
 
-[![](https://www.paypalobjects.com/en_US/BE/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=AT4L7ST55JR4A)
+## Use your Mobile Banking App and scan the QR Code
+The QR codes comply the EPC069-12 European Standard for SEPA Credit Transfers ([SCT](https://www.europeanpaymentscouncil.eu/sites/default/files/KB/files/EPC069-12%20v2.1%20Quick%20Response%20Code%20-%20Guidelines%20to%20Enable%20the%20Data%20Capture%20for%20the%20Initiation%20of%20a%20SCT.pdf)). The amount of the donation can possibly be modified in your Mobile Banking App.
+| 5 EUR      | 10 EUR      |
+|------------|-------------|
+| <img src="https://user-images.githubusercontent.com/16196363/110992325-0f3d7e80-8376-11eb-83bb-0615d2d03c8e.png" width="80" height="80"> | <img src="https://user-images.githubusercontent.com/16196363/110992680-8b37c680-8376-11eb-97fc-be7894b68389.png" width="80" height="80"> |
+
+## Use PayPal
+[![](https://www.paypalobjects.com/en_US/BE/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=AT4L7ST55JR4A) 
 
 # Domoticz-NEST-plugin
 Nest plugin for Domoticz using the Google account credentials.
