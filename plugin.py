@@ -165,7 +165,7 @@ class BasePlugin:
                 config = json.load(json_file)
         except:
             pass
-        if 'RoundTemperature' in config:
+        if not config and 'RoundTemperature' in config:
             self.round_temperature = config['RoundTemperature']
 
         # Create images if necessary
