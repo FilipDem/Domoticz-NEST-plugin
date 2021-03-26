@@ -23,7 +23,7 @@
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 #
 """
-<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.0.0">
+<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.0.1">
     <description>
         <h2>Instructions</h2>
         The values of <b>issue_token</b> and <b>cookies</b> are specific to your Google Account.<br/>
@@ -163,10 +163,9 @@ class BasePlugin:
             config = None
             with open("./plugins/GoogleNest/GoogleNest.json") as json_file:
                 config = json.load(json_file)
+            self.round_temperature = config['RoundTemperature']
         except:
             pass
-        if not config and 'RoundTemperature' in config:
-            self.round_temperature = config['RoundTemperature']
 
         # Create images if necessary
         if _IMAGE_NEST_AWAY not in Images:
