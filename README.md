@@ -49,6 +49,8 @@ The values of issue_token and cookies are specific to your Google Account. To ge
 * Several network calls will appear in the Dev Tools window. Click on the last iframe call.
 * In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the *Cookie:* prefix). This is your $cookies; make sure all of it is on a single line.
 
+Remark: after the procedure above, you can close the browser, however you cannot logoff/logout from your nest account! Otherwise the credentials will no longer be valid.
+
 If you have problems, it is recommended to test with the nest.py plugin outside Domoticz. It is developed in python3 (substitute the proper values for `xxx`):
 
 ```shell
@@ -56,6 +58,18 @@ export NEST_ISSUE_TOKEN='xxx'
 export NEST_COOKIE='xxx'
 python3 nest.py
 ```
+
+## Possible connection problems
+When there are connection problems due to wrong issue_toke and/or cookie, a Domoticz error will be generated on regular basis. However the error won't get away (and devices will not be updated) as long as the plugin is not restarted (use the ```update``` button in the Hardware tab). 
+
+Similar behavor happens when the generated Google access tokens (based on issue_token and cookie) are no longer valid. This could happen when you logged out the session that was used to recuperate the issue_token and cookie.
+
+Typical errors that will be generated are:
+* API returned error: ...
+* Invalid IssueToken/Cookie: ...
+* API request failed ...
+* API response status code
+
 
 ## Device creation
 After the start of the plugin the devices will be automatically created for: 
