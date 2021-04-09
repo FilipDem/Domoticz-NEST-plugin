@@ -47,7 +47,7 @@ The values of issue_token and cookies are specific to your Google Account. To ge
 * In the Headers tab, under General, copy the entire Request URL (beginning with https://accounts.google.com, ending with nest.com). This is your $issue_token.
 * In the Filter box, enter oauth2/iframe.
 * Several network calls will appear in the Dev Tools window. Click on the last iframe call.
-* In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
+* In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the *Cookie:* prefix). This is your $cookies; make sure all of it is on a single line.
 
 If you have problems, it is recommended to test with the nest.py plugin outside Domoticz. It is developed in python3 (substitute the proper values for `xxx`):
 
