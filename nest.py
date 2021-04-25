@@ -48,9 +48,10 @@ class Nest():
     USER_AGENT = 'Domoticz Nest/1.0'
     REQUEST_TIMEOUT = 10.0
 
-    def __init__(self, issue_token, cookie):
+    def __init__(self, issue_token, cookie, refresh_time):
         self._issue_token = issue_token
         self._cookie = cookie
+        self._refresh_time = refresh_time
         self._access_token = None
         self._access_token_type = None
         self._nest_user_id = None
@@ -157,7 +158,7 @@ class Nest():
         self._nest_user_id = result['claims']['subject']['nestId']['id']
         self._nest_access_token = result['jwt']
         self._cache_expiration_text = result['claims']['expirationTime']
-        log("Got access token and user id ({})".format(self._nest_user_id))
+        log("Got access token and user id ({}) and remains valid until {}.".format(self._nest_user_id, self._cache_expiration_text))
         return True
 
     def _GetUser(self):
@@ -185,7 +186,6 @@ class Nest():
 
     def UpdateDevices(self):
         try:
-            self._nest_access_error = None
             if self.GetNestCredentials():
                 return self.GetDevicesAndStatus()
         except Exception as e:
@@ -200,9 +200,11 @@ class Nest():
 
     def GetNestCredentials(self):
         #self._ReadCache()
+        self._nest_access_error = None
+
         current_time = datetime.now(pytz.utc).astimezone(tzlocal.get_localzone())
         if self._cache_expiration is not None:
-            if self._cache_expiration > current_time:
+            if (self._cache_expiration-current_time).seconds/60 > max(self._refresh_time, 5):
                 return True
 
         if not self._GetBearerTokenUsingGoogleCookiesIssue_token():
@@ -213,12 +215,15 @@ class Nest():
             return False
 
         try:
-            format = '%Y-%m-%dT%H:%M:%S.%fZ'
+            if '.' in self._cache_expiration_text: #there are milliseconds in the text
+                format = '%Y-%m-%dT%H:%M:%S.%fZ'
+            else:                                  #milliseconds=0, so there are no milliseconds in the text
+                format = '%Y-%m-%dT%H:%M:%SZ'
             naive = datetime.strptime(self._cache_expiration_text, format)
         except TypeError:
             # https://stackoverflow.com/questions/40392842/typeerror-in-strptime-in-python-3-4
             naive = datetime.fromtimestamp(time.mktime(time.strptime(self._cache_expiration_text, format)))
-        self._cache_expiration = pytz.utc.localize(naive)
+        self._cache_expiration = pytz.utc.localize(naive).astimezone(tzlocal.get_localzone())
 
         #self._WriteCache()
         return True
@@ -374,11 +379,13 @@ class Nest():
         return self.UpdateNest(url, data, "Eco set to mode {}".format(mode))
 
     def UpdateNest(self, url, data, success_msg, retries=2):
-        request = self.PostMessageWithRetries(url=url, data=data)
-        if request is None:
-            return False
-        log(success_msg)
-        return True
+        if self.GetNestCredentials():
+            request = self.PostMessageWithRetries(url=url, data=data)
+            if request is None:
+                return False
+            log(success_msg)
+            return True
+        return False
 
     def PostMessageWithRetries(self, url, data, headers=None, retries=1):
         if headers == None:
@@ -403,6 +410,9 @@ class Nest():
                     self._nest_access_error = None
                     return request
                 self._nest_access_error = "API response status code {}".format(request.status_code)
+                if request.status_code == 401:
+                    log("Status 401 Credentials validation: expiration date/time {} - current date/time {} - delta minutes {}).".format(self._cache_expiration, datetime.now(pytz.utc).astimezone(tzlocal.get_localzone()), (self._cache_expiration-datetime.now(pytz.utc).astimezone(tzlocal.get_localzone())).seconds/60 if self._cache_expiration else None))
+                    self._cache_expiration = None
                 if request.status_code < 500:
                     break
             except requests.exceptions.Timeout as e:
@@ -419,7 +429,7 @@ if __name__ == "__main__":
     if issue_token is None or cookie is None:
         log("Please set environment variables NEST_ISSUE_TOKEN and NEST_COOKIE")
         exit(1)
-    thermostat = Nest(issue_token, cookie)
+    thermostat = Nest(issue_token, cookie, 1)
     if thermostat.UpdateDevices():
         infoNest = thermostat.GetNestInformation()
         log("General Nest information: {}".format(infoNest))
