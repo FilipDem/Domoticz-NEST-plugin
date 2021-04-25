@@ -23,7 +23,7 @@
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 #
 """
-<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.0.1">
+<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.1.0">
     <description>
         <h2>Instructions</h2>
         The values of <b>issue_token</b> and <b>cookies</b> are specific to your Google Account.<br/>
@@ -40,6 +40,8 @@
           <li>Several network calls will appear in the 'Dev Tools' window. Click on the <b>last 'iframe'</b> call.</li>
           <li>In the '<b>Headers</b>' tab, under '<b>Request Headers</b>', copy the entire '<b>cookie value</b>' (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your <b>$cookies</b>; make sure all of it is on a single line.</li>
         </ol>
+        You can now close the browser, but DO NOT LOGGED OUT from your Google Nest Account (logging out <br/>
+        will invalidate the credentials).<br/>
     </description>
     <params>
         <param field="Mode1" label="issue_token" width="600px" required="true"/>
@@ -115,10 +117,10 @@ class BasePlugin:
         if self.myNest.UpdateDevices():
             self.access_error_generated = 0
         else:
-            Domoticz.Error(self.myNest.GetAccessError())
-            TimeoutDevice(All=True)
             if self.access_error_generated <= 0:
-                self.access_error_generated = 12 * 60 * 60 # 12 hours
+                Domoticz.Error(self.myNest.GetAccessError())
+                TimeoutDevice(All=True)
+                self.access_error_generated = 6 * 60 * 60 # 6 hours
         Domoticz.Debug("> Exit update thread")
         self.nest_update_status = _NEST_UPDATE_STATUS_DONE
 
@@ -184,12 +186,17 @@ class BasePlugin:
         TimeoutDevice(All=True)
 
         # Create Nest instance
-        self.myNest = nest.Nest(Parameters["Mode1"], Parameters["Mode2"])
+        if not Parameters["Mode1"].startswith('https://accounts.google.com'):
+            Domoticz.Error("Hardware setting issue_token must start with https://accounts.google.com.")
+        if not Parameters["Mode1"].endswith('nest.com'):
+            Domoticz.Error("Hardware setting issue_token must end with nest.com.")
+        self.myNest = nest.Nest(Parameters["Mode1"], Parameters["Mode2"], float(Parameters["Mode5"].replace(',','.')))
 
         Domoticz.Debug("> Plugin started")
 
     def onStop(self):
-        self.myNest.terminate()
+        if self.myNest:
+            self.myNest.terminate()
 
         # Wait until all queued threads have exited
         while threading.active_count() > 1:
@@ -371,7 +378,7 @@ class BasePlugin:
         try:
             self.runAgain -= self.HEARTBEAT_SEC
 
-            # In case the API fails, generate en error every 12 hours
+            # In case the API fails
             if self.access_error_generated > 0:
                 self.access_error_generated -= self.HEARTBEAT_SEC
 
@@ -396,7 +403,7 @@ class BasePlugin:
                 # Run again following the period in the settings
                 self.runAgain = float(Parameters["Mode5"].replace(',','.')) * 60
 
-            elif self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated <= 0:
+            elif self.nest_update_status == _NEST_UPDATE_STATUS_DONE and self.access_error_generated == 0:
                 updated_units = self.updateThermostats() + self.updateProtects() + self.updateNestInfo()
 
                 Domoticz.Debug("Updated {} units for {} device(s)".format(
