@@ -236,7 +236,7 @@ class BasePlugin:
 
                 if DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_HEATING_TEMP, Unit):
                     self.startNestPushThread(device, _NEST_HEATING_TEMP, Level, Unit)
-                elif DeviceNameBelongsToUnit(info['Where'] + ' ' + _NEST_AWAY, Unit):
+                elif DeviceNameBelongsToUnit(_NEST_AWAY, Unit):
                     if Command == 'On':
                         Level = True
                         UpdateDeviceByUnit(Unit, 1, 1, Images[_IMAGE_NEST_AWAY].ID)
