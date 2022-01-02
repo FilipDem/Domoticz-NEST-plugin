@@ -23,7 +23,7 @@
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 #
 """
-<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.1.0">
+<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.1.1">
     <description>
         <h2>Instructions</h2>
         The values of <b>issue_token</b> and <b>cookies</b> are specific to your Google Account.<br/>
@@ -199,7 +199,8 @@ class BasePlugin:
             self.myNest.terminate()
 
         # Wait until all queued threads have exited
-        while threading.active_count() > 1:
+        endTime = time.time() + 70
+        while (threading.active_count() > 1) and (time.time() < endTime):
             for thread in threading.enumerate():
                 if thread.name != threading.current_thread().name:
                     Domoticz.Log("Thread {} is still running, wait some more".format(thread.name))
