@@ -46,7 +46,7 @@ except:
 class Nest():
 
     USER_AGENT = 'Domoticz Nest/1.0'
-    REQUEST_TIMEOUT = 10.0
+    REQUEST_TIMEOUT = 5.0
 
     def __init__(self, issue_token, cookie, refresh_time):
         self._issue_token = issue_token
@@ -248,7 +248,7 @@ class Nest():
         #with open('Nest_dump.txt') as json_file:
         #    self._status = json.load(json_file)        
 
-        log('Status: {}'.format(json.dumps(self._status, indent=2)))
+        #log('Status: {}'.format(json.dumps(self._status, indent=2)))
 
         try:
             devices = [bucket['value']['swarm'] for bucket in self._status['updated_buckets'] if bucket['object_key'].split('.')[0] == 'structure'][0]
