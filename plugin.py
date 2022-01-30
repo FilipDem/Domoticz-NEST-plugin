@@ -23,7 +23,7 @@
 #     In the Headers tab, under Request Headers, copy the entire cookie value (include the whole string which is several lines long and has many field/value pairs - do not include the Cookie: prefix). This is your $cookies; make sure all of it is on a single line.
 #
 """
-<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.2.0">
+<plugin key="GoogleNest" name="Nest Thermostat/Protect Google" author="Filip Demaertelaere" version="2.3.0">
     <description>
         <h2>Instructions</h2>
         The values of <b>issue_token</b> and <b>cookies</b> are specific to your Google Account.<br/>
@@ -85,6 +85,7 @@ _NEST_AWAY = 'Away'
 _NEST_TEMP_HUM = 'Temp/Hum'
 _NEST_HEATING_TEMP = 'Heating Temp'
 _NEST_PROTECT = 'Protect'
+_NEST_WIND = 'Wind'
 
 ################################################################################
 # Start Plugin
@@ -98,6 +99,7 @@ class BasePlugin:
         self.ErrorLevel = 0
         self.myNest = None
         self.round_temperature = 0
+        self.wind_list = []
         self.tasksQueue = queue.Queue()
         self.tasksThread = threading.Thread(name='QueueThread', target=BasePlugin.handleTasks, args=(self,))
 
@@ -142,6 +144,7 @@ class BasePlugin:
             self.myNest = nest.Nest(Parameters['Mode1'], Parameters['Mode2'], float(Parameters['Mode5'].replace(',','.')))
             self.tasksThread.start()
             self.tasksQueue.put({'Action': 'StatusUpdate'})
+            self.tasksQueue.put({'Action': 'OutsideWeather'})
 
         Domoticz.Debug('> Plugin started')
 
@@ -173,7 +176,7 @@ class BasePlugin:
         Domoticz.Debug('> onCommand called: Unit: {} - Command: {} - Level {} - Hue: {}'.format(Unit, Command, Level, Hue))
 
         for device in self.myNest.device_list:
-            info = self.myNest.GetDeviceInformation(device)
+            info = self.myNest.GetThermostatInformation(device)
             Domoticz.Debug('> {} - {}'.format(info['Where'], Devices[Unit].Name))
 
             # Set heating temperature
@@ -208,9 +211,10 @@ class BasePlugin:
 
             # Get Nest Update
             self.tasksQueue.put({'Action': 'StatusUpdate'})
+            self.tasksQueue.put({'Action': 'OutsideWeather'})
             if self.ErrorLevel == 5:
-                TimeoutDevice(True)
-                Domoticz.Error('Unable to get update data from Nest (last error: {}).'.format(self.myNest._nest_access_error))
+                TimeoutDevice(Devices, All=True)
+                Domoticz.Error('ERRORLEVEL=5 Unable to get update data from Nest (last error: {}).'.format(self.myNest._nest_access_error))
 
             # Run again following the period in the settings
             self.runAgain = MINUTE * float(Parameters['Mode5'].replace(',','.'))
@@ -230,35 +234,53 @@ class BasePlugin:
                     break
 
                 Domoticz.Debug('> Handling task: {}.'.format(task['Action']))
+                DeviceUpdate = False
+                DeviceUpdateRequested = False
                 if task['Action'] == 'StatusUpdate':
-                    UpdateStatus = self.myNest.UpdateDevices()
+                    DeviceUpdateRequested = True
+                    DeviceUpdate = self.myNest.UpdateDevices()
                         
                 elif task['Action'] == 'SetHeatingTemp':
-                    UpdateStatus = self.myNest.SetTemperature(task['Device'], task['Value']) and self.myNest.UpdateDevices()
+                    DeviceUpdateRequested = True
+                    DeviceUpdate = self.myNest.SetTemperature(task['Device'], task['Value']) and self.myNest.UpdateDevices()
                     
                 elif task['Action'] == 'SetAway':
+                    DeviceUpdateRequested = True
                     Away = True if task['Value'] == 'On' else False
-                    UpdateStatus = self.myNest.SetAway(task['Device'], Away) and self.myNest.UpdateDevices()
+                    DeviceUpdate = self.myNest.SetAway(task['Device'], Away) and self.myNest.UpdateDevices()
 
                 elif task['Action'] == 'SetEcoMode':
+                    DeviceUpdateRequested = True
                     Eco = 'manual-eco' if task['Value'] == 'On' else 'schedule'
-                    UpdateStatus = self.myNest.SetEco(task['Device'], Eco) and self.myNest.UpdateDevices()
+                    DeviceUpdate = self.myNest.SetEco(task['Device'], Eco) and self.myNest.UpdateDevices()
 
                 elif task['Action'] == 'SetHeating':
+                    DeviceUpdateRequested = True
                     Heat = 'heat' if task['Value'] == 'On' else 'off'
-                    UpdateStatus = self.myNest.SetThermostat(task['Device'], Heat) and self.myNest.UpdateDevices()
+                    DeviceUpdate = self.myNest.SetThermostat(task['Device'], Heat) and self.myNest.UpdateDevices()
+
+                elif task['Action'] == 'OutsideWeather':
+                    WeatherUpdate = self.myNest.GetOutsideTempHum()
+                    if WeatherUpdate:
+                        updated_units = self.updateWeather(WeatherUpdate)
+                        self.ErrorLevel = 0
+                        Domoticz.Debug('> Updated {} units for weather.'.format(updated_units))
+                    else:
+                        self.ErrorLevel += 1
+                        Domoticz.Debug('Unable to get weather data from Nest (last error: {}).'.format(self.myNest._nest_access_error))
 
                 else:
                     Domoticz.Error('> TaskHandler: unknown action code {}'.format(task['Action']))
-                    UpdateStatus = self.myNest.UpdateDevices()
+                    DeviceUpdate = self.myNest.UpdateDevices()
 
-                if UpdateStatus:
-                    updated_units = self.updateThermostats() + self.updateProtects() + self.updateNestInfo()
+                if DeviceUpdate:
+                    updated_units = self.updateNestInfo() + self.updateThermostats() + self.updateProtects()
                     self.ErrorLevel = 0
                     Domoticz.Debug('> Updated {} units for {} device(s)'.format(updated_units, len(self.myNest.device_list) + len(self.myNest.protect_list)))
                 else:
-                    self.ErrorLevel += 1
-                    Domoticz.Debug('Unable to get update data from Nest (last error: {}).'.format(self.myNest._nest_access_error))
+                    if DeviceUpdateRequested:
+                        self.ErrorLevel += 1
+                        Domoticz.Debug('Unable to get update data from Nest (last error: {}).'.format(self.myNest._nest_access_error))
 
                 self.tasksQueue.task_done()
                 Domoticz.Debug('> Finished handling task: {}.'.format(task['Action']))
@@ -289,7 +311,7 @@ class BasePlugin:
     def updateThermostats(self):
         updated_units = 0
         for nest_device in self.myNest.device_list:
-            info = self.myNest.GetDeviceInformation(nest_device)
+            info = self.myNest.GetThermostatInformation(nest_device)
             Domoticz.Debug('> {}'.format(json.dumps(info)))
 
             #Update NEST HEATING and create device if required
@@ -328,12 +350,12 @@ class BasePlugin:
             if not unit:
                 unit = GetNextFreeUnit(Devices)
                 description = CreateDescription(device_name)
-                Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=82, Subtype=5, Switchtype=0, Used=1).Create()
+                Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=82, Subtype=1, Switchtype=0, Used=1).Create()
             if self.round_temperature:
                 temperature = round(info['Current_temperature'] * 2) / 2
             else:
                 temperature = info['Current_temperature']
-            UpdateDevice(Devices, unit, temperature, '%.1f;%.0f;0'%(temperature, info['Humidity']))
+            UpdateDevice(Devices, unit, 0, '%.1f;%.0f;0'%(temperature, info['Humidity']))
             updated_units += 1
 
             #Update NEST HEATING TEMPERATURE and create device if required
@@ -345,6 +367,21 @@ class BasePlugin:
                 Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=242, Subtype=1, Switchtype=0, TypeName=info['Temperature_scale'], Used=1).Create()
             UpdateDevice(Devices, unit, info['Target_temperature'], info['Target_temperature'])
             updated_units += 1
+            
+            #Update device for the auto-away of the thermostat
+            device_name = info['Where'] + ' ' + _NEST_AWAY
+            unit = FindUnitByNestName(device_name)
+            if not unit:
+                unit = GetNextFreeUnit(Devices)
+                description = CreateDescription(device_name)
+                Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_NEST_AWAY].ID, Used=0).Create()
+            #Auto_away<0=disabled; Auto_away==0=enabled+home; Auto_away>0=enabled+away
+            if info['Auto_away'] > 0:
+                UpdateDevice(Devices, unit, 1, 1)
+            elif info['Auto_away'] == 0:
+                UpdateDevice(Devices, unit, 0, 0)
+            updated_units += 1
+                  
         return updated_units
 
     def updateNestInfo(self):
@@ -366,6 +403,40 @@ class BasePlugin:
         updated_units += 1
         return updated_units
 
+    def updateWeather(self, weather_info):
+        updated_units = 0
+        Domoticz.Debug('> {}'.format(json.dumps(weather_info)))
+
+        #update Temperature/Humidity and create device if required
+        device_name = '{} {}'.format(weather_info['City'], _NEST_TEMP_HUM)
+        unit = FindUnitByNestName(device_name)
+        if not unit:
+            unit = GetNextFreeUnit(Devices)
+            description = CreateDescription(device_name)
+            Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=82, Subtype=1, Switchtype=0, Used=1).Create()
+        UpdateDevice(Devices, unit, 0, '%.1f;%.0f;0'%(weather_info['Current_temperature'], weather_info['Current_humidity']))
+        updated_units += 1
+
+        #update Wind and create device if required
+        device_name = '{} {}'.format(weather_info['City'], _NEST_WIND)
+        unit = FindUnitByNestName(device_name)
+        if not unit:
+            unit = GetNextFreeUnit(Devices)
+            description = CreateDescription(device_name)
+            Domoticz.Device(Unit=unit, Name=device_name, Description=description, Type=86, Subtype=4, Switchtype=0, Used=1).Create()
+        wind_km = 1.609344 * weather_info['Current_wind']
+        directions = {'N':0, 'NNE':22.5, 'NE':45, 'ENE':67.5, 'E':90, 'ESE':112.5, 'SE':135,'SSE':157.5, 'S':180, 'SSW':202.5, 'SW':225, 'WSW':247.5, 'W':270, 'WNW':292.5, 'NW':315, 'NNW':337.5, 'N':0, 'North':0, 'East':90, 'West':270, 'South':180}
+        wind_chill = 13.12 + (0.6215 * weather_info['Current_temperature']) + (-11.37 * wind_km ** 0.16) + (0.3965 * weather_info['Current_temperature'] * wind_km ** 0.16)
+        if len(self.wind_list)>10:
+            self.wind_list.pop(0)
+        self.wind_list.append(wind_km)
+        UpdateDevice(Devices, unit, 0, '%.1f;%s;%d;%.1f;%.1f;%.1f'%(directions[weather_info['Wind_direction']], weather_info['Wind_direction'], 10000/3600*wind_km, 10000/3600*max(self.wind_list), weather_info['Current_temperature'], wind_chill))
+        updated_units += 1
+
+        return updated_units
+        
+    
+    
 global _plugin
 _plugin = BasePlugin()
 
