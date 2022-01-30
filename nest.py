@@ -67,6 +67,8 @@ class Nest():
         #self._ReadCache()
         self.device_list = []
         self.protect_list = []
+        self.country_code = None
+        self.postal_code = None
 
     def terminate(self):
         self._running = False
@@ -137,6 +139,9 @@ class Nest():
         return False
 
     def _UseBearerTokenToGetAccessTokenAndUserId(self):
+        if not self._running:
+            return False
+
         url = 'https://nestauthproxyservice-pa.googleapis.com/v1/issue_jwt'
         data = {
             'embed_google_oauth_access_token': True,
@@ -162,6 +167,9 @@ class Nest():
         return True
 
     def _GetUser(self):
+        if not self._running:
+            return False
+
         url = 'https://home.nest.com/api/0.1/user/' + self._nest_user_id + '/app_launch'
         data = {
             'known_bucket_types': [ 'user' ],
@@ -229,6 +237,9 @@ class Nest():
         return True
         
     def GetStatusUserBuckets(self):
+        if not self._running:
+            return False
+
         # General Nest information: "structure"
         # Thermostats: "device", "shared",
         # Protect: "topaz"
@@ -270,7 +281,7 @@ class Nest():
         log("Got nest devices {}: thermostats {} - protects {}".format(len(self.device_list)+len(self.protect_list),self.device_list, self.protect_list))
         return status
 
-    def GetDeviceInformation(self, device_id):
+    def GetThermostatInformation(self, device_id):
         info = {}
         try:
             structure_id = [bucket['value']['structure'][10:] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'link.{}'.format(device_id)][0]
@@ -289,6 +300,7 @@ class Nest():
                 'Target_temperature_low': shared['target_temperature_low'],
                 'Target_temperature_high': shared['target_temperature_high'],
                 'Where': wheres[device['where_id']],
+                'Auto_away': shared['auto_away']
             }
         except:
             pass
@@ -324,12 +336,53 @@ class Nest():
 
             info = {
                 'Name': str(structure['name']),
-                'Away': structure['away']
+                'Away': structure['away'],
+                'City': structure['city'],
+                'Country_code': structure['country_code'],
+                'Postal_code': structure['postal_code']
             }
+
         except:
             pass
             
         return info
+
+    def GetOutsideTempHum(self):
+        if not self._running:
+            return False
+        
+        NestInfo = self.GetNestInformation()
+        if not ('Postal_code' in NestInfo and 'Country_code' in NestInfo) and (NestInfo['Postal_code'] == '' or NestInfo['Country_code'] == ''):
+            return False
+            
+        url = 'https://home.nest.com/api/0.1/weather/forecast/{},{}'.format(NestInfo['Postal_code'], NestInfo['Country_code'])
+        try:
+            request = requests.get(url, timeout=self.REQUEST_TIMEOUT)
+            request.raise_for_status()
+            result = request.json()
+
+            info = {}
+            try:
+                info = {
+                    'City': NestInfo['City'],
+                    'Current_humidity': result['now']['current_humidity'],
+                    'Current_temperature': result['now']['current_temperature'],
+                    'Current_wind': result['now']['current_wind'],
+                    'Wind_direction': result['now']['wind_direction']
+                }
+            except:
+                pass
+            return info
+
+        except requests.exceptions.Timeout as e:
+            self._nest_access_error = 'API request timed out'
+        except requests.exceptions.ConnectionError as e:
+            self._nest_access_error = 'Connection error API request'
+        except requests.exceptions.HTTPError as e:
+            self._nest_access_error = 'API request failed (status {})'.format(e.response.status_code)
+        except json.JSONDecodeError as e:
+            self._nest_access_error = 'Invalid API response'
+        return False
 
     def SetThermostat(self, device_id, mode): #False = set thermostat off
         url = self._transport_url + '/v2/put/shared.' + device_id
@@ -361,7 +414,7 @@ class Nest():
         }
         if self.UpdateNest(url, data, "Away set to {}".format(is_away)):
             if is_away and eco_when_away:
-                self.SetEco(device, 'manual-eco')
+                self.SetEco(device_id, 'manual-eco')
             return True
         else:
             return False
@@ -434,7 +487,7 @@ if __name__ == "__main__":
         infoNest = thermostat.GetNestInformation()
         log("General Nest information: {}".format(infoNest))
         for device in thermostat.device_list:
-            info = thermostat.GetDeviceInformation(device)
+            info = thermostat.GetThermostatInformation(device)
             log("Nest Thermostat {}: {}".format(device, info))
             log("    Set Temperature: {}".format(thermostat.SetTemperature(device, float(info['Target_temperature']))))
             log("    Set Away: {}".format(thermostat.SetAway(device, infoNest['Away'])))
@@ -443,4 +496,6 @@ if __name__ == "__main__":
         for device in thermostat.protect_list:
             info = thermostat.GetProtectInformation(device)
             log("Nest Protect {}: {}".format(device, info))
+        info = thermostat.GetOutsideTempHum()
+        log("Weather: {}".format(info))
     log(thermostat.GetAccessError())
