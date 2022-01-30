@@ -15,7 +15,18 @@ Nest plugin for Domoticz using the Google account credentials.
 
 This is a workaround solution for Nest thermostats and Nest Protect devices in Domoticz. It does not use any official API because of non-existance. Nest/Google announced them only to be available by end of 2020. Nest Thermostat E (UK/EU version) is not supported.
 
-The plugin creates the following devices: Away, Eco-mode, Heating, Temperature/Humidity, Heating temperature, and Nest Protect. From now on, the "Away"-device is not linked to the Thermostat devices. In the scenario with only Nest Protect devices, the "Away"-device will anyway be created and give the away-status. Read also the chapter "Migration".
+The plugin creates the following devices: 
+* General Nest status
+    * Away (showing the combined status delivered by Google Nest)
+    * Weather devices
+* Nest Thermostat:
+    * Thermostat Eco-mode
+    * Thermostat Heating
+    * Thermostat Temperature/Humidity (indoor)
+    * Thermostat Heating temperature
+    * Thermostat Away (showing the away status indicated by the thermostat only)
+* Nest Protect:
+    * Nest Protec status
 
 ## Installation (linux)
 Follow this procedure to install the plugin.
@@ -79,15 +90,17 @@ After the start of the plugin the devices will be automatically created for:
 * Eco mode (on/off)
 * Temp/hum (temperature and humidity)
 * Heating Temp (thermostat temperature)
+* Away (thermostat) (*)
 * Protect (on/off)
+* Weather devices (Temp/hum and Wind)
 
-The names of the devices are created automatically based on the location settings of your Nest devices with *name_of_the_hardware* - *location type_of_switch*, except for the "Away"-device.
+(*) This device is by default set as "not used". Go to the Setup - Devices to make the device visible.
+
+The names of the devices are created automatically based on the location settings of your Nest devices with *name_of_the_hardware* - *location type_of_switch*. The weather device has a dedicated name based on the city (*name_of_the_hardware* - *city type_of_switch*). As the away status is independent of the devices (and is in fact a combination of all the devices), the name is automatically created as *name_of_the_hardware* - *Away*.
 
    * name_of_the_hardware: name as entered in the Setup - Hardware screen
    * location: as set up in the nest account, some possible values 'Entryway', 'Kitchen', 'Living Room', ...
-   * type_of_switch: 'Heating', 'Eco mode', 'Temp/Hum', 'Heating Temp', 'Protect'
-
-As the away status is independent of the devices (and is in fact a combination of all the devices), the name is automatically created as *name_of_the_hardware* - *Away*.
+   * type_of_switch: 'Heating', 'Eco mode', 'Temp/Hum', 'Heating Temp', 'Protect', 'Temp/Hum', 'Wind', 'Away'
 
 For each created device a remark is added to the description, like '**Do not remove**: [Family Room Heating]'. The part in square brackets (inclusive) is needed to make this plugin work. It allows you changing the name of devices (but do not change the tag in the description).
 
