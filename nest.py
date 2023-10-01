@@ -73,31 +73,31 @@ class Nest():
     def terminate(self):
         self._running = False
 
-#     def _ReadCache(self):
-#         if os.path.exists('nest.json'):
-#             try:
-#                 with open('nest.json') as json_file:
-#                     data = json.load(json_file)
-#                     self._nest_user_id = data['user_id']
-#                     self._nest_access_token = data['access_token']
-#                     self._transport_url = data['transport_url']
-#                     self._user = data['user']
-#                     self._cache_expiration_text = data['cache_expiration'] #2019-11-23T11:16:51.640Z
-#                     self._cache_expiration = datetime.strptime(self._cache_expiration, '%Y-%m-%dT%H:%M:%S.%fZ')
-#             except:
-#                 pass
+    #     def _ReadCache(self):
+    #         if os.path.exists('nest.json'):
+    #             try:
+    #                 with open('nest.json') as json_file:
+    #                     data = json.load(json_file)
+    #                     self._nest_user_id = data['user_id']
+    #                     self._nest_access_token = data['access_token']
+    #                     self._transport_url = data['transport_url']
+    #                     self._user = data['user']
+    #                     self._cache_expiration_text = data['cache_expiration'] #2019-11-23T11:16:51.640Z
+    #                     self._cache_expiration = datetime.strptime(self._cache_expiration, '%Y-%m-%dT%H:%M:%S.%fZ')
+    #             except:
+    #                 pass
 
-#     def _WriteCache(self):
-#         try:
-#             with open('nest.json', 'w') as json_file:
-#                 json.dump({ 'user_id': self_nest_user_id,
-#                             'access_token': self._nest_access_token,
-#                             'user': self._user,
-#                             'transport_url': self._transport_url,
-#                             'cache_expiration': self._cache_expiration_text
-#                           }, json_file)
-#         except:
-#             pass
+    #     def _WriteCache(self):
+    #         try:
+    #             with open('nest.json', 'w') as json_file:
+    #                 json.dump({ 'user_id': self_nest_user_id,
+    #                             'access_token': self._nest_access_token,
+    #                             'user': self._user,
+    #                             'transport_url': self._transport_url,
+    #                             'cache_expiration': self._cache_expiration_text
+    #                           }, json_file)
+    #         except:
+    #             pass
 
     def _GetBearerTokenUsingGoogleCookiesIssue_token(self):
         if not self._running:
@@ -313,14 +313,14 @@ class Nest():
             device = [bucket['value'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'topaz.{}'.format(device_id)][0]
             structure_id = [bucket['object_key'][10:] for bucket in self._status['updated_buckets'] if (bucket['object_key'].split('.')[0] == 'structure' and 'topaz.{}'.format(device_id) in bucket['value']['swarm'])][0]
             wheres = {where['where_id'] : where['name'] for bucket in self._status['updated_buckets'] if bucket['object_key'] == 'where.{}'.format(structure_id) for where in bucket['value']['wheres']}
-        
+            
             info = {
                 'Smoke_status': device['smoke_status'],
                 'Co_status': device['co_status'],
                 'Heat_status': device['heat_status'],
                 'Serial_number': str(device['serial_number']),
                 'Co_previous_peak': str(device['co_previous_peak']),
-                'Where': wheres[device['spoken_where_id']] if 'spoken_where_id' in device else wheres[device['where_id']],
+                'Where': wheres[device['where_id']] if 'where_id' in device else wheres[device['spoken_where_id']],
                 'Battery_low': str(device['battery_health_state']),
                 'Battery_level': str(device['battery_level'])
             }
@@ -490,9 +490,9 @@ if __name__ == "__main__":
             info = thermostat.GetThermostatInformation(device)
             log("Nest Thermostat {}: {}".format(device, info))
             log("    Set Temperature: {}".format(thermostat.SetTemperature(device, float(info['Target_temperature']))))
-            log("    Set Away: {}".format(thermostat.SetAway(device, infoNest['Away'])))
             log("    Set Ecomode: {}".format(thermostat.SetEco(device, 'manual-eco')))
             log("    Set Thermostat heating: {}".format(thermostat.SetThermostat(device, 'heat')))
+            log("    Set Away: {}".format(thermostat.SetAway(device, info['Auto_away'])))
         for device in thermostat.protect_list:
             info = thermostat.GetProtectInformation(device)
             log("Nest Protect {}: {}".format(device, info))
