@@ -419,6 +419,15 @@ class Nest():
         else:
             return False
 
+    def SetAwayTemperature(self, device_id, target_temperature):
+        url = self._transport_url + '/v2/put/device.' + device_id
+        data = {
+            'away_temperature_low_enabled': True,
+            'away_temperature_low': target_temperature
+        }
+        return self.UpdateNest(url, data, "Away temperature set to {}".format(target_temperature))
+
+    
     def SetEco(self, device_id, mode): # mode equals 'manual-eco' or 'schedule'
         url = self._transport_url + '/v2/put/device.' + device_id
         mode_update_timestamp = datetime.now(pytz.timezone('utc')).astimezone(tzlocal.get_localzone()).timestamp()
