@@ -1,3 +1,7 @@
+# End of Support
+As I don't have access to a NEST thermostat anymore due to energy transition, I am not able anymore to evolve the plugin and investigate problems.
+Sorry for this... I keep the sources available on Github to let people contribute.
+
 # Donation
 It took me quite some effort to get the plugin available. Small contributions are welcome...
 
